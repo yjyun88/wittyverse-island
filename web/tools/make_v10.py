@@ -45,9 +45,28 @@ for k, z in CMAP.get('zones', {}).items():
     d = Image.open(os.path.join(cdir, z['detail'])).convert('RGB')
     if d.width > 1600: d = d.resize((1600, round(d.height * 1600 / d.width)), Image.LANCZOS)
     A['zones'][k] = {'name': z['name'], 'poly': z['poly'], 'img': uri(d, q=90), 'blur': blur(d), 'lines': z.get('lines', [])}
+# AR 존 네온 공룡: 밤에 입을 움직이도록 아래턱과 네온을 지운 배경을 따로 넣는다
+if 'ar' in A['zones']:
+    import dino_jaw
+    jb, jf = dino_jaw.jaw(os.path.join(cdir, CMAP['zones']['ar']['detail']))
+    A['zones']['ar']['jaw'] = {'bg': uri(jb, 'PNG'), 'fg': uri(jf, 'PNG'), 'box': list(dino_jaw.BOX), 'pivot': list(dino_jaw.PIVOT), 'bend': list(dino_jaw.BEND)}
 if CMAP.get('cast_dir'):
     import cast_v9; A['cast'] = cast_v9.cast(os.path.normpath(os.path.join(cdir, CMAP['cast_dir'])))
 html = open(os.path.join(here, 'v10_template.html'), encoding='utf-8').read()
+# 말풍선 폰트(티머니 둥근바람): 대사·이름표에 쓰는 글자만 남긴 서브셋을 woff 로 넣는다(fonttools 없으면 기본 글꼴)
+def bubble_font():
+    try:
+        import base64, io
+        from fontTools import subset
+        from fontTools.ttLib import TTFont
+    except ImportError:
+        print('fonttools 없음: 말풍선은 기본 글꼴'); return ''
+    text = '위니페로' + ''.join(''.join(z.get('lines', [])) for z in CMAP.get('zones', {}).values())
+    f = TTFont(os.path.join(here, 'fonts', 'tmoney_round_wind.ttf'))
+    sub = subset.Subsetter(subset.Options()); sub.populate(text=text); sub.subset(f)
+    f.flavor = 'woff'; b = io.BytesIO(); f.save(b)
+    return '@font-face{font-family:"MwBubble";font-weight:800;src:url(data:font/woff;base64,%s) format("woff")}' % base64.b64encode(b.getvalue()).decode()
+html = html.replace('/*__BUBFONT__*/', bubble_font())
 html = html.replace('__THREE__', open(os.path.join(here, 'three_inline.txt'), encoding='utf-8').read()).replace('__ASSETS__', json.dumps(A))
 open(OUT, 'w', encoding='utf-8').write(html)
 print('v10 written', round(len(html.encode('utf-8')) / 1e6, 2), 'MB')

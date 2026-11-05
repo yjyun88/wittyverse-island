@@ -35,7 +35,8 @@ build.sh              생성 + 빌드 + (선택) 설치
 
 ## 빌드
 
-필요: Python 3 (`numpy`, `opencv-python`, `pillow`), JDK 17, Android SDK.
+필요: Python 3 (`numpy`, `opencv-python`, `pillow`, `fonttools`), JDK 17, Android SDK.
+(`fonttools` 는 지도 말풍선 폰트(`web/tools/fonts/tmoney_round_wind.ttf`)에서 대사 글자만 뽑을 때 씁니다.)
 처음 한 번 `android/local.properties` 에 `sdk.dir=...` 를 적습니다.
 
 ```sh

@@ -3,7 +3,7 @@
 #   sh build.sh            → 3D 샘플 HTML 생성 + 지도 복사 + 디버그 APK 빌드
 #   sh build.sh map        → 지도(v10.html)도 원본에서 다시 생성(시간이 조금 걸림)
 #   sh build.sh install    → 빌드 후 연결된 기기(ADB_SERIAL 또는 기본 기기)에 install -r
-# 필요: Python 3 (numpy, opencv-python, pillow), JDK 17, Android SDK(android/local.properties 의 sdk.dir)
+# 필요: Python 3 (numpy, opencv-python, pillow, fonttools), JDK 17, Android SDK(android/local.properties 의 sdk.dir)
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 ASSETS="$ROOT/android/app/src/main/assets"

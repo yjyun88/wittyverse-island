@@ -14,15 +14,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:#050a18}
 #wx.night .ic{transform:rotate(-360deg)}
 .hide{opacity:0!important;pointer-events:none!important}
 #s3d{position:fixed;right:24px;top:98px;height:52px;padding:0 20px 0 12px;display:flex;align-items:center;gap:8px;border-radius:999px;border:2px dashed rgba(255,255,255,.85);color:#fff;font:800 18px "Pretendard","Malgun Gothic",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);background:linear-gradient(135deg,#8b5cf6,#5b3fd0);transition:opacity .35s;-webkit-tap-highlight-color:transparent;z-index:5}
+/*__BUBFONT__*/
 #cast{position:fixed;left:0;top:0;pointer-events:none;overflow:hidden}
 #cast .ch{position:absolute;will-change:transform}
 #cast .ch img{position:absolute;left:0;top:0;width:100%;height:100%;will-change:transform}
-#cast .bub{position:absolute;padding:.55em 1em;border-radius:1em;background:rgba(255,255,255,.95);color:#1d2340;font-weight:900;white-space:nowrap;font-family:"Pretendard","Malgun Gothic",sans-serif;box-shadow:0 .3em .9em rgba(0,0,0,.35)}
-#cast .bub.l{transform-origin:0 50%}
-#cast .bub.r{transform-origin:100% 50%}
-#cast .bub::after{content:"";position:absolute;top:50%;margin-top:-.55em;border:.55em solid transparent}
-#cast .bub.l::after{left:-.58em;border-right:.6em solid rgba(255,255,255,.95);border-left:0}
-#cast .bub.r::after{right:-.58em;border-left:.6em solid rgba(255,255,255,.95);border-right:0}
+#cast .bub{position:absolute;padding:.62em 1.15em .58em;border-radius:1.3em;background:linear-gradient(180deg,#ffffff 0%,#f4f0ff 100%);color:#2b2552;font-weight:800;letter-spacing:-.01em;white-space:nowrap;font-family:"MwBubble","Pretendard","Malgun Gothic",sans-serif;font-size:1.05em;border:.15em solid var(--bc);filter:drop-shadow(0 .22em 0 var(--bs)) drop-shadow(0 .45em .7em rgba(0,0,20,.4))}
+#cast .bub.l{--bc:#ff9b8f;--bs:#d9675f}
+#cast .bub.r{--bc:#a593ff;--bs:#6b58d8}
+#cast .bub::after{content:"";position:absolute;bottom:-.5em;width:.8em;height:.8em;background:#f4f0ff;border:solid var(--bc);border-width:0 .15em .15em 0;border-bottom-right-radius:.18em;transform:rotate(45deg);clip-path:polygon(100% -20%,100% 100%,-20% 100%)}
+#cast .bub.l::after{left:var(--tx);margin-left:-.48em}
+#cast .bub.r::after{right:var(--tx);margin-right:-.48em}
+#cast .bub::before{content:attr(data-name);position:absolute;top:-.95em;padding:.18em .75em .14em;border-radius:1em;background:var(--bc);color:#fff;font-size:.6em;font-weight:800;letter-spacing:.04em;box-shadow:0 .15em 0 var(--bs)}
+#cast .bub.l::before{left:.9em}
+#cast .bub.r::before{right:.9em}
 #hud{position:fixed;right:12px;bottom:10px;color:#8ff7a7;font:700 12px ui-monospace,monospace;background:rgba(0,0,0,.45);padding:4px 8px;border-radius:8px}
 
 /* MW_THEME: 낮 = D 나무 팻말, 밤 = E 별빛 글래스 (버튼·영역 제목). 폰트는 쓰는 글자만 남긴 서브셋 */
@@ -216,6 +220,8 @@ base.position.set(W / 2, H / 2, 0); scene.add(base); scene.add(fx);
 // ---------- particles (all animated on the GPU from a seed; no per-frame CPU work) ----------
 const dot = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
   g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.3, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const spark = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.2, 'rgba(255,255,255,1)'); g.addColorStop(.32, 'rgba(255,255,255,.45)'); g.addColorStop(.6, 'rgba(255,255,255,.08)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const puff = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
   g.addColorStop(0, 'rgba(255,255,255,.9)'); g.addColorStop(.55, 'rgba(255,255,255,.35)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const pxScale = { value: 1 };
@@ -259,12 +265,12 @@ points(LOW ? 40 : 60, () => [0, 0],
   { color: [1, .95, .8], day: .7 });
 // rocket: flickering exhaust, a fiery glow on the launch pad (night), smoke puffing out of the pad
 const [rx, ry] = P(S.rocket[0], S.rocket[1]), [px_, py_] = P(S.pad[0], S.pad[1]);
-points(2, () => [px_, py_ - 2], `a = (.2 + .05 * sin(uT * 9. + aS.x * 9.) + .03 * sin(uT * 23.)) * (1. - aS.w * .5); sz = 70. + aS.w * 40.;`, { color: [1, .5, .15], day: 1, order: 2 });
+points(2, () => [px_, py_ - 2], `a = (.2 + .05 * sin(uT * 9. + aS.x * 9.) + .03 * sin(uT * 23.)) * (1. - aS.w * .5) * mix(1., 1.4, uN); sz = 70. + aS.w * 40.;`, { color: [1, .5, .15], day: 1, order: 2 });
 points(LOW ? 26 : 40, () => [px_, py_],
   `float life = fract(uT * (.18 + aS.x * .1) + aS.y); float side = aS.z < .5 ? -1. : 1.; p.x += side * (20. + life * (60. + aS.x * 40.)); p.y += life * (18. + aS.z * 26.) - 6.;
-   a = sin(life * 3.1416) * .18; sz = 14. + life * 30.;`, { color: [.92, .94, 1], tex: puff, add: false, order: 3 });
+   a = sin(life * 3.1416) * .42; sz = 20. + life * 50.;`, { color: [.92, .94, 1], tex: puff, add: false, order: 3, day: 0 });
 points(8, () => [rx, ry],
-  `p.y -= aS.w * 16.; p.x += (aS.x - .5) * 5.; a = (1. - aS.w) * (.25 + .15 * sin(uT * 30. + aS.y * 50.)); sz = 18. - aS.w * 9. + sin(uT * 25. + aS.z * 9.) * 3.;`, { color: [1, .6, .25], order: 4, day: 1 });
+  `p.y -= aS.w * 16.; p.x += (aS.x - .5) * 5.; a = (1. - aS.w) * (.25 + .15 * sin(uT * 30. + aS.y * 50.)) * mix(1., 1.6, uN); sz = 18. - aS.w * 9. + sin(uT * 25. + aS.z * 9.) * 3.;`, { color: [1, .6, .25], order: 4, day: 1 });
 // campfire: flickering glow and embers drifting up
 const [kx, ky] = P(S.campfire[0], S.campfire[1]);
 points(1, () => [kx, ky + 3], `a = .16 + .06 * sin(uT * 11. + aS.x * 7.) + .04 * sin(uT * 27. + aS.y * 5.); sz = 38.;`, { color: [1, .55, .2], day: 1, order: 2 });
@@ -272,15 +278,43 @@ points(10, () => [kx, ky],
   `float life = fract(uT * (.35 + aS.x * .3) + aS.y); p.y += life * (30. + aS.z * 20.); p.x += sin(life * 6. + aS.z * 9.) * 4. + (aS.x - .5) * 10. * life; a = (1. - life) * (.35 + .25 * sin(uT * 20. + aS.y * 30.)); sz = 2.5 + aS.z * 3.;`,
   { color: [1, .65, .25], day: 1, order: 3 });
 // ferris wheel: a chase of lights running round the rim (night)
+const behindRocket = (nx, ny, hw, sh, len, rx) => `{ vec2 ip = vec2(p.x * ${K.toFixed(5)}, ${H.toFixed(1)} - p.y * ${K.toFixed(5)}); float dy = ip.y - ${ny.toFixed(1)}; if (dy > -2. && dy < ${len.toFixed(1)} && abs(ip.x - ${nx.toFixed(1)}) < ${hw.toFixed(1)} * min(1., sqrt(max(dy, 0.) / ${sh.toFixed(1)})) + 3. + (ip.x > ${nx.toFixed(1)} ? ${rx.toFixed(1)} : 0.)) a = 0.; }`;   // rx: 오른쪽만 더 넓게 가림
 const [wx, wy] = P(S.wheel[0], S.wheel[1]), wr = S.wheel[2] / K;
-points(24, () => [wx, wy], `float ang = aS.w * 6.2832 - uT * .35; p.xy += vec2(cos(ang), sin(ang)) * ${wr.toFixed(1)}; a = .55 + .45 * sin(uT * 4. - aS.w * 12.566); sz = 9.;`, { color: [1, .6, .95], day: 0 });
+points(24, () => [wx, wy], `float ang = aS.w * 6.2832 - uT * .35; p.xy += vec2(cos(ang), sin(ang)) * ${wr.toFixed(1)}; a = (.55 + .45 * sin(uT * 4. - aS.w * 12.566)) * mix(1., 1.45, uN); sz = mix(9., 11., uN); ${behindRocket(1966, 733, 25, 45, 170, 8)}`, { color: [1, .6, .95], day: 0 });
 // stage: sweeping spotlight beams (night)
 const beamMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, uniforms: { uT: U.uT, uN: U.uN },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
-  fragmentShader: `uniform float uT, uN; varying vec2 vUv; void main(){ float x = abs(vUv.x - .5) * 2.; float w = mix(.12, 1., vUv.y); float b = smoothstep(w, w * .3, x) * (1. - vUv.y) * smoothstep(0., .08, vUv.y);
-    gl_FragColor = vec4(vec3(.3, .8, 1.) * b * 1.15 * uN, 1.); }` });
+  fragmentShader: `uniform float uT, uN; varying vec2 vUv; void main(){ float x = abs(vUv.x - .5) * 2.; float w = mix(.12, 1., vUv.y); float b = smoothstep(w, w * .3, x) * (.3 + .7 * (1. - vUv.y)) * smoothstep(0., .08, vUv.y) * smoothstep(1., .8, vUv.y);
+    gl_FragColor = vec4(vec3(.3, .8, 1.) * b * 1.65 * uN, 1.); }` });
 const [sx, sy] = P(S.stage[0], S.stage[1]), beams = [];
-[[-24, -5, .5, .53], [-8, 5, 2.1, .36], [27, 3, 3.7, -.65]].forEach(([dx, dy, ph, tilt]) => { const g = new THREE.PlaneGeometry(36, 66); g.translate(0, 33, 0); const m = new THREE.Mesh(g, beamMat); m.position.set(sx + dx, sy + dy, 0); m.renderOrder = 5; m.userData = { ph, tilt }; fx.add(m); beams.push(m); });
+// 무대 조명: 기둥 꼭대기·별에서 아래로 비춤(가운데 = 무대 위, 양옆 = 무대 앞 바닥)
+[[1783, 1097, .5, 3.0], [1848, 1104, 2.1, 3.05], [1920, 1132, 3.7, 3.3]].forEach(([bx, by, ph, tilt]) => { const g = new THREE.PlaneGeometry(36, 66); g.translate(0, 33, 0); const m = new THREE.Mesh(g, beamMat); m.position.set(...P(bx, by), 0); m.renderOrder = 5; m.userData = { ph, tilt }; fx.add(m); beams.push(m); });
+// 폭죽(밤): 불씨가 올라가 터지고 퍼지며 떨어짐. 터지는 자리는 회마다 조금씩 달라짐
+const FW_COL = [[1, .45, .8], [1, .85, .35], [.45, .9, 1], [.65, 1, .55]];
+function fwMotion(ph, r, rise, jit){ return `float cyc = uT / 3.2 + ${ph.toFixed(3)}; float life = fract(cyc); float id = floor(cyc);
+  vec2 j = vec2(fract(sin(id * 12.9898 + ${(ph * 7).toFixed(2)}) * 43758.5453), fract(sin(id * 78.233 + ${(ph * 3).toFixed(2)}) * 43758.5453)) - .5;
+  p.xy += j * ${jit.toFixed(1)};
+  if (life < .2) { float u = life / .2; p.y -= ${rise.toFixed(1)} * (1. - u); p.x += sin(u * 14. + aS.x * 6.) * 1.2; a = aS.w < .08 ? .5 + .5 * u : 0.; sz = 4.5; }
+  else { float t = (life - .2) / .8;
+    if (aS.w < .05) { a = clamp(1. - t / .12, 0., 1.) * .45; sz = 22.; }
+    else { float ang = aS.w * 6.2832 * 3. + aS.x * .4; float sp = ${r.toFixed(1)} * (.35 + .65 * sqrt(aS.y)); float e = 1. - pow(1. - t, 3.);
+      p.xy += vec2(cos(ang), sin(ang)) * sp * e; p.y -= ${(r * .4).toFixed(1)} * t * t;
+      a = pow(1. - t, 1.1) * 1.6 * (t > .45 ? .45 + .55 * step(.45, fract(uT * 13. + aS.z * 7.)) : 1.); sz = mix(10., 4., t); } }`; }
+[[1860, 560, 0], [2290, 640, .5], [1900, 520, .27], [2250, 600, .77]].forEach(([x, y, ph], i) => { const q = P(x, y);
+  points(56, () => q, fwMotion(ph, 46, 46, 30), { color: FW_COL[i], day: 0, order: 4, tex: spark }); });
+// 천문대 행성 네온(밤): 고리와 테두리를 따라 빛나고, 가끔 네온사인처럼 지직거리며 깜빡임
+const NEON = `float nk = floor(uT * 15.); float nr = fract(sin(nk * 12.9898) * 43758.5453); float nb = step(.78, fract(uT * .21)); float nf = smoothstep(.0, .03, fract(uT * .21) - .78) * (1. - nb);
+  float on = mix(1., step(.5, nr) * .9 + .1, nb); `;
+// 행성 고리(타원: 중심 cx,cy / 반지름 ra,rb / 기울기 ang) 와 테두리(반지름 br) 위의 점. 행성 뒤로 넘어가는 고리는 뺌
+function planetPts(cx, cy, ra, rb, ang, bx, by, br, nRing, nRim){ const ring = [], rim = [], ca = Math.cos(ang), sa = Math.sin(ang);
+  for (let i = 0; i < nRing; i++) { const t = i / nRing * Math.PI * 2, lx = ra * Math.cos(t), ly = rb * Math.sin(t), x = cx + lx * ca - ly * sa, y = cy + lx * sa + ly * ca;
+    if (ly < 0 && Math.hypot(x - bx, y - by) < br + 2) continue; ring.push([x, y]); }
+  for (let i = 0; i < nRim; i++) { const t = i / nRim * Math.PI * 2; rim.push([bx + br * Math.cos(t), by + br * Math.sin(t)]); }
+  return { ring, rim }; }
+{ const pl = planetPts(668.7, 553.5, 64.6, 16.9, .354, 666.9, 552.5, 35.4, 120, 84);
+  points(pl.ring.length, i => P(...pl.ring[i]), NEON + `a = on * 1.5 * (.85 + .15 * sin(uT * 3. + aS.w * 25.)); sz = 4.4;`, { color: [1, .42, .95], day: 0, order: 4, tex: spark });
+  points(pl.rim.length, i => P(...pl.rim[i]), NEON + `a = on * 1.35 * (.75 + .15 * sin(uT * 2.3 + aS.w * 18.)); sz = 4.;`, { color: [.45, .95, 1], day: 0, order: 4, tex: spark });
+  points(1, () => P(666.9, 552.5), NEON + `a = on * .38; sz = 110.;`, { color: [.75, .5, 1], day: 0, order: 3 }); }
 // plasma globe: lightning branching out of the ball, flashes of glow
 const [cx, cy] = P(S.coil[0], S.coil[1]);
 const NA = 6, NS = 9, arcGeo = new THREE.BufferGeometry(), arcPos = new Float32Array(NA * NS * 2 * 3);
@@ -291,7 +325,7 @@ function zap(){ let k = 0; for (let a = 0; a < NA; a++) { const ang = rnd(-.6, M
     for (let s = 0; s < NS; s++) { const t = (s + 1) / NS, nx = cx + Math.cos(ang) * len * t + rnd(-5, 5), ny = cy + Math.sin(ang) * len * t * .8 + rnd(-5, 5); arcPos.set([x, y, 0, nx, ny, 0], k); k += 6; x = nx; y = ny; } }
   arcGeo.attributes.position.needsUpdate = true; }
 // a few soft cyan points, not ten: stacked additively they clipped to white over the pale rock left of the ball and pulled the glow off centre
-points(4, () => [cx, cy], `a = .3 + .25 * sin(uT * 18. + aS.x * 20.); sz = 26. + aS.y * 22.;`, { color: [.3, .8, 1], day: .3 });
+points(4, () => [cx, cy], `a = .3 + .25 * sin(uT * 18. + aS.x * 20.); sz = 26. + aS.y * 22.;`, { color: [.3, .8, 1], day: 0 });
 
 // ---------- picture edges for windows that aren't 16:10: a blurred copy stretched outwards and darkened with distance ----------
 function bgMesh(u, vigDay, vigNight){
@@ -347,13 +381,23 @@ wxBtn.addEventListener('click', e => { e.stopPropagation(); if (mode === 'map' |
 // ---------- island detail screens: a separate scene; the map zooms into the island, then the detail takes over ----------
 const dscene = new THREE.Scene(), dcam = new THREE.OrthographicCamera(0, W, H, 0, -10, 10);
 const dMat = new THREE.ShaderMaterial({ transparent: true, depthTest: false, depthWrite: false,
-  uniforms: { uMap: { value: null }, uA: { value: 0 }, uT: U.uT, uN: U.uN, uNoise: { value: noiseTex }, uFall: { value: new THREE.Vector4() }, uFoot: { value: new THREE.Vector2() }, uFx: { value: 0 } },
+  uniforms: { uMap: { value: null }, uA: { value: 0 }, uT: U.uT, uN: U.uN, uNoise: { value: noiseTex }, uFall: { value: new THREE.Vector4() }, uFoot: { value: new THREE.Vector2() }, uFx: { value: 0 },
+    uJawBg: { value: null }, uJawFg: { value: null }, uJawOn: { value: 0 }, uJawAng: { value: 0 }, uJawBox: { value: new THREE.Vector4() }, uJawPiv: { value: new THREE.Vector2() }, uJawBend: { value: new THREE.Vector2() } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
   // MW: 상세 화면도 지도처럼 살아 움직이게. 판정은 감마 근사(sqrt)한 색으로, px 는 지도 효과와 같은 1376 기준 좌표(y 아래로)
-  fragmentShader: `uniform sampler2D uMap; uniform float uA, uT, uN, uFx; uniform vec4 uFall; uniform vec2 uFoot; varying vec2 vUv; ${NOISE_TEX}
+  fragmentShader: `uniform sampler2D uMap, uJawBg, uJawFg; uniform float uA, uT, uN, uFx, uJawOn, uJawAng; uniform vec4 uFall, uJawBox; uniform vec2 uFoot, uJawPiv, uJawBend; varying vec2 vUv; ${NOISE_TEX}
     void main(){
       vec2 uv = vUv, px = vec2(uv.x, 1. - uv.y) * vec2(${(W / K).toFixed(1)}, ${(H / K).toFixed(1)});
       vec3 c = texture2D(uMap, uv).rgb, q = sqrt(max(c, 0.));
+      // AR 존 네온 공룡(밤): 아래턱을 턱관절 기준으로 돌려 그림(원래 자리는 네온을 지운 배경)
+      if (uJawOn > .001) { vec2 ip = px * ${K.toFixed(5)};
+        if (ip.x > uJawBox.x && ip.y > uJawBox.y && ip.x < uJawBox.z && ip.y < uJawBox.w) {
+          vec2 sz = uJawBox.zw - uJawBox.xy, d = ip - uJawPiv; float ja = uJawAng * smoothstep(uJawBend.x, uJawBend.y, ip.x), cs = cos(ja), sn = sin(ja);
+          vec2 src = uJawPiv + vec2(cs * d.x + sn * d.y, -sn * d.x + cs * d.y);
+          vec2 u0 = (ip - uJawBox.xy) / sz, u1 = (src - uJawBox.xy) / sz;
+          vec3 bgc = texture2D(uJawBg, vec2(u0.x, 1. - u0.y)).rgb; vec4 jf = texture2D(uJawFg, vec2(u1.x, 1. - u1.y));
+          jf.a *= step(0., u1.x) * step(u1.x, 1.) * step(0., u1.y) * step(u1.y, 1.);
+          c = mix(c, mix(bgc, jf.rgb, jf.a), uJawOn); q = sqrt(max(c, 0.)); } }
       vec3 c0 = c; if (uFx > .001) {
       float lum = dot(q, vec3(.299, .587, .114)), mx = max(q.r, max(q.g, q.b)), sat = mx - min(q.r, min(q.g, q.b));
       // 폭포: 그려진 물이 아래로 흐르고(두 위상 교차) 물줄기 결과 거품
@@ -393,12 +437,14 @@ const dMat = new THREE.ShaderMaterial({ transparent: true, depthTest: false, dep
 const dMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), dMat); dMesh.position.set(W / 2, H / 2, 0); dscene.add(dMesh);
 const dBlur = { value: null }, dBg = bgMesh({ uAb: dBlur, uBb: dBlur, uN: { value: 0 }, uAlpha: dMat.uniforms.uA, uGrade: { value: 0 } }, .5, .5); dscene.add(dBg);
 const ZONES = A.zones || {}, dTex = {};
-const dTexB = {}; Object.keys(ZONES).forEach(k => { dTex[k] = tex(ZONES[k].img); dTexB[k] = tex(ZONES[k].blur); });                    // decoded up front: no hitch on the first tap
+const dTexB = {}; Object.keys(ZONES).forEach(k => { dTex[k] = tex(ZONES[k].img); dTexB[k] = tex(ZONES[k].blur); });
+const JAW = ZONES.ar && ZONES.ar.jaw;
+if (JAW) { const u = dMat.uniforms; u.uJawBg.value = tex(JAW.bg); u.uJawFg.value = tex(JAW.fg); u.uJawBox.value.set(...JAW.box); u.uJawPiv.value.set(...JAW.pivot); u.uJawBend.value.set(...JAW.bend); }                    // decoded up front: no hitch on the first tap
 
 // ---------- MW 영역 안 상시 효과: 지도와 같은 효과를 각 영역 그림 위 해당 위치에 (좌표는 상세 그림 원본 px). 낮/밤은 지도와 같은 uN ----------
 const ZFX = {
   learn: { fall: [985, 1085, 1465, 1505], foot: [1235, 1480], campfire: [1572, 880], forest: [560, 230, 2000, 880] },
-  play: { wheel: [1624, 300, 150], rocket: [1490, 640], pad: [1490, 772], stage: [1285, 1140] },
+  play: { wheel: [1624, 300, 150], rocket: [1490, 668], pad: [1490, 772], stage: [1285, 1140] },
   ar: { rainbow: [1665, 1030, 1450, 1180, 1305, 985], coil: [1090, 900], sparkle: [720, 380, 1860, 1250],
         stars: [[880, 230], [940, 262], [1000, 250], [1032, 212], [925, 318], [1100, 128], [1152, 172], [1138, 204], [1098, 250]] } };
 const zA = { value: 0 }; let zFxV = 0;
@@ -433,19 +479,21 @@ const FIREFLY = `p.xy += vec2(sin(uT * (.3 + aS.x * .4) + aS.y * 6.28), cos(uT *
 // 놀이·퀴즈: 관람차 전구(밤에 더 밝게), 로켓 분사 불꽃·발사대 불빛·연기, 무대 조명(밤)
 const zBeams = [];
 { const c = ZFX.play, [wx2, wy2] = P(c.wheel[0], c.wheel[1]), wr2 = c.wheel[2] / K, [rx2, ry2] = P(...c.rocket), [px2, py2] = P(...c.pad), [sx2, sy2] = P(...c.stage);
-  dpoints('play', 24, () => [wx2, wy2], `float ang = aS.w * 6.2832 - uT * .35; p.xy += vec2(cos(ang), sin(ang)) * ${wr2.toFixed(1)}; a = .55 + .45 * sin(uT * 4. - aS.w * 12.566); sz = 9.;`, { color: [1, .6, .95], day: .25 });
-  dpoints('play', 2, () => [px2, py2 - 2], `a = (.2 + .05 * sin(uT * 9. + aS.x * 9.) + .03 * sin(uT * 23.)) * (1. - aS.w * .5); sz = 70. + aS.w * 40.;`, { color: [1, .5, .15], day: 1, order: 2 });
+  dpoints('play', 24, () => [wx2, wy2], `float ang = aS.w * 6.2832 - uT * .35; p.xy += vec2(cos(ang), sin(ang)) * ${wr2.toFixed(1)}; a = (.55 + .45 * sin(uT * 4. - aS.w * 12.566)) * mix(1., 1.45, uN); sz = mix(9., 11., uN); ${behindRocket(1497, 365, 48, 90, 290, 14)}`, { color: [1, .6, .95], day: .25 });
+  dpoints('play', 2, () => [px2, py2 - 2], `a = (.2 + .05 * sin(uT * 9. + aS.x * 9.) + .03 * sin(uT * 23.)) * (1. - aS.w * .5) * mix(1., 1.4, uN); sz = 70. + aS.w * 40.;`, { color: [1, .5, .15], day: 1, order: 2 });
   dpoints('play', LOW ? 26 : 40, () => [px2, py2],
     `float life = fract(uT * (.18 + aS.x * .1) + aS.y); float side = aS.z < .5 ? -1. : 1.; p.x += side * (${zf(20)} + life * (${zf(60)} + aS.x * ${zf(40)})); p.y += life * (${zf(18)} + aS.z * ${zf(26)}) - ${zf(6)};
-     a = sin(life * 3.1416) * .18; sz = 14. + life * 30.;`, { color: [.92, .94, 1], tex: puff, add: false, order: 3 });
+     a = sin(life * 3.1416) * .42; sz = 20. + life * 50.;`, { color: [.92, .94, 1], tex: puff, add: false, order: 3, day: 0 });
   dpoints('play', 8, () => [rx2, ry2],
-    `p.y -= aS.w * ${zf(16)}; p.x += (aS.x - .5) * ${zf(5)}; a = (1. - aS.w) * (.25 + .15 * sin(uT * 30. + aS.y * 50.)); sz = 18. - aS.w * 9. + sin(uT * 25. + aS.z * 9.) * 3.;`, { color: [1, .6, .25], order: 4, day: 1 });
+    `p.y -= aS.w * ${zf(16)}; p.x += (aS.x - .5) * ${zf(5)}; a = (1. - aS.w) * (.25 + .15 * sin(uT * 30. + aS.y * 50.)) * mix(1., 1.6, uN); sz = 18. - aS.w * 9. + sin(uT * 25. + aS.z * 9.) * 3.;`, { color: [1, .6, .25], order: 4, day: 1 });
+  [[720, 280, 0], [2060, 290, .5], [780, 230, .27], [2010, 240, .77]].forEach(([x, y, ph], i) => { const q = P(x, y);
+    dpoints('play', 64, () => q, fwMotion(ph, 92, 100, 40), { color: FW_COL[i], day: 0, order: 4, tex: spark }); });
   const zBeamMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, uniforms: { uT: U.uT, uN: U.uN, uA: zA },
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
-    fragmentShader: `uniform float uT, uN, uA; varying vec2 vUv; void main(){ float x = abs(vUv.x - .5) * 2.; float w = mix(.12, 1., vUv.y); float b = smoothstep(w, w * .3, x) * (1. - vUv.y) * smoothstep(0., .08, vUv.y);
-      gl_FragColor = vec4(vec3(.3, .8, 1.) * b * 1.15 * uN * uA, 1.); }` });
-  [[-24, -5, .5, .53], [-8, 5, 2.1, .36], [27, 3, 3.7, -.65]].forEach(([dx, dy, ph, tilt]) => { const g = new THREE.PlaneGeometry(36 * ZM, 66 * ZM); g.translate(0, 33 * ZM, 0);
-    const m = new THREE.Mesh(g, zBeamMat); m.position.set(sx2 + dx * ZM, sy2 + dy * ZM, 0); m.renderOrder = 5; m.userData = { ph, tilt }; zfxZ.play.add(m); zBeams.push(m); }); }
+    fragmentShader: `uniform float uT, uN, uA; varying vec2 vUv; void main(){ float x = abs(vUv.x - .5) * 2.; float w = mix(.12, 1., vUv.y); float b = smoothstep(w, w * .3, x) * (.3 + .7 * (1. - vUv.y)) * smoothstep(0., .08, vUv.y) * smoothstep(1., .8, vUv.y);
+      gl_FragColor = vec4(vec3(.3, .8, 1.) * b * 1.65 * uN * uA, 1.); }` });
+  [[1160, 1032, .5, 3.0], [1280, 1046, 2.1, 3.05], [1410, 1102, 3.7, 3.3]].forEach(([bx, by, ph, tilt]) => { const g = new THREE.PlaneGeometry(36 * ZM, 66 * ZM); g.translate(0, 33 * ZM, 0);
+    const m = new THREE.Mesh(g, zBeamMat); m.position.set(...P(bx, by), 0); m.renderOrder = 5; m.userData = { ph, tilt }; zfxZ.play.add(m); zBeams.push(m); }); }
 // AR 존: 무지개 리본을 따라 흐르는 반짝이, 플라즈마 볼 전기·빛, 별자리 별, 섬 위 금빛 반짝이(밤)
 const ZNA = 6, ZNS = 9, zArcGeo = new THREE.BufferGeometry(), zArcPos = new Float32Array(ZNA * ZNS * 2 * 3);
 zArcGeo.setAttribute('position', new THREE.BufferAttribute(zArcPos, 3));
@@ -456,9 +504,13 @@ const [zcx, zcy] = P(...ZFX.ar.coil);
     `float t = fract(uT * .16 + aS.w); float u = 1. - t;
      p.xy = u * u * vec2(${f1(q0x)}, ${f1(q0y)}) + 2. * u * t * vec2(${f1(q1x)}, ${f1(q1y)}) + t * t * vec2(${f1(q2x)}, ${f1(q2y)}) + (aS.xy - .5) * ${zf(22)} + vec2(0., sin(uT * 2. + aS.z * 6.) * ${zf(4)});
      a = smoothstep(0., .15, t) * smoothstep(1., .8, t) * pow(.5 + .5 * sin(uT * (5. + aS.z * 6.) + aS.y * 30.), 3.); sz = 5. + aS.z * 8.;`, { color: [1, .95, .8], day: .7 });
-  dpoints('ar', 4, () => [zcx, zcy], `a = .3 + .25 * sin(uT * 18. + aS.x * 20.); sz = 26. + aS.y * 22.;`, { color: [.3, .8, 1], day: .3 });
+  dpoints('ar', 4, () => [zcx, zcy], `a = .3 + .25 * sin(uT * 18. + aS.x * 20.); sz = 26. + aS.y * 22.;`, { color: [.3, .8, 1], day: 0 });
   dpoints('ar', LOW ? 24 : 36, () => P(rnd(g0, g1), rnd(h0, h1)), FIREFLY.replace('* 14', '* 18'), { color: [1, .85, .4], day: 0 });
   dpoints('ar', c.stars.length, i => P(...c.stars[i]), `a = .35 + .65 * pow(.5 + .5 * sin(uT * (1.2 + aS.x * 1.5) + aS.y * 20.), 3.); sz = 10. + aS.z * 6.;`, { color: [.75, .95, 1], day: .45, order: 2 });
+  { const pl = planetPts(1277.5, 268.4, 88.3, 22, .359, 1278, 267, 48.5, 150, 100);
+    dpoints('ar', pl.ring.length, i => P(...pl.ring[i]), NEON + `a = on * 1.5 * (.85 + .15 * sin(uT * 3. + aS.w * 25.)); sz = 3.7;`, { color: [1, .42, .95], day: 0, order: 4, tex: spark });
+    dpoints('ar', pl.rim.length, i => P(...pl.rim[i]), NEON + `a = on * 1.35 * (.75 + .15 * sin(uT * 2.3 + aS.w * 18.)); sz = 3.3;`, { color: [.45, .95, 1], day: 0, order: 4, tex: spark });
+    dpoints('ar', 1, () => P(1278, 267), NEON + `a = on * .38; sz = 90.;`, { color: [.75, .5, 1], day: 0, order: 3 }); }
   const arcs2 = new THREE.LineSegments(zArcGeo, zArcMat); arcs2.renderOrder = 6; zfxZ.ar.add(arcs2); }
 function zzap(){ let k = 0; for (let a = 0; a < ZNA; a++) { const ang = rnd(-.6, Math.PI + .6), len = rnd(45, 105) * ZM; let x = zcx, y = zcy;
     for (let q = 0; q < ZNS; q++) { const t = (q + 1) / ZNS, nx = zcx + Math.cos(ang) * len * t + rnd(-5, 5) * ZM, ny = zcy + Math.sin(ang) * len * t * .8 + rnd(-5, 5) * ZM; zArcPos.set([x, y, 0, nx, ny, 0], k); k += 6; x = nx; y = ny; } }
@@ -470,8 +522,10 @@ function zfxShow(k){ Object.keys(zfxZ).forEach(q => zfxZ[q].visible = q === k); 
 function zfxTick(dt){ if (mode === 'map') { zFxV = 0; return; }
   zFxV = mode === 'zone' ? Math.min(1, zFxV + dt / .5) : Math.max(0, zFxV - dt / .15);
   dMat.uniforms.uFx.value = zFxV; zA.value = dMat.uniforms.uA.value * zFxV; zfx.visible = zFxV > .001; if (!zfx.visible) return; const sc = dMesh.scale.x; zfx.scale.set(K * sc, K * sc, 1); zfx.position.set(W / 2 * (1 - sc), H / 2 * (1 - sc), 0);
-  zBeams.forEach(b => b.rotation.z = b.userData.tilt + Math.sin(T * .8 + b.userData.ph) * .12);
-  if (zone === 'ar' && T - zZapT > .07) { zZapT = T; zzap(); zArcMat.opacity = (Math.random() < .2 ? 0 : .5 + Math.random() * .5) * lerp(.35, 1, U.uN.value) * zA.value; } }
+  zBeams.forEach(b => b.rotation.z = b.userData.tilt + Math.sin(T * (.6 + b.userData.ph * .08) + b.userData.ph) * .22);
+  // 공룡 입: 천천히 벌리고 잠깐 멈췄다가 다묾, 쉼(밤에만)
+  if (JAW) { const c = T % 2.8, e = x => x * x * (3 - 2 * x), o = c < .55 ? e(c / .55) : c < .8 ? 1 : c < 1.15 ? 1 - e((c - .8) / .35) : 0; dMat.uniforms.uJawOn.value = zone === 'ar' ? U.uN.value : 0; dMat.uniforms.uJawAng.value = .27 * o; }
+  if (zone === 'ar' && T - zZapT > .07) { zZapT = T; zzap(); zArcMat.opacity = (Math.random() < .2 ? 0 : .5 + Math.random() * .5) * U.uN.value * zA.value; } }
 const inPoly = (pts, x, y) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
 const centre = pts => { let x = 0, y = 0; pts.forEach(p => { x += p[0]; y += p[1]; }); return [x / pts.length, y / pts.length]; };
 let mode = 'map', zone = null, tr = null;                                          // tr: running transition
@@ -501,8 +555,8 @@ function loop(now){
   if (capT && now - capT < 1000 / 60 - 1.5) return; capT = Math.max((capT || now) + 1000 / 60, now - 1000 / 60);
   const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt; U.uT.value = T;
   if (wxTr) { wxTr.t += dt; const e = ease(wxTr.t / wxTr.dur); U.uN.value = lerp(wxTr.from, wxTr.to, e); if (wxTr.t >= wxTr.dur) wxTr = null; }
-  beams.forEach(b => b.rotation.z = b.userData.tilt + Math.sin(T * .8 + b.userData.ph) * .12);
-  if (T - zapT > .07) { zapT = T; zap(); arcMat.opacity = (Math.random() < .2 ? 0 : .5 + Math.random() * .5) * lerp(.35, 1, U.uN.value); }
+  beams.forEach(b => b.rotation.z = b.userData.tilt + Math.sin(T * (.6 + b.userData.ph * .08) + b.userData.ph) * .22);
+  if (T - zapT > .07) { zapT = T; zap(); arcMat.opacity = (Math.random() < .2 ? 0 : .5 + Math.random() * .5) * U.uN.value; }
   if (tr) { tr.t += dt; tr.fn(Math.min(tr.t, tr.dur)); fit(); if (tr.t >= tr.dur) { const d = tr.done; tr = null; d(); } }
   // the map is only drawn while it can be seen (on the detail screen the GPU only draws one picture)
   if (mode === 'zone') castE = 1; animCast(); zfxTick(dt);
@@ -514,11 +568,11 @@ fit(); requestAnimationFrame(loop);
 // ---------- detail-screen hosts: Winni (left) and Pero (right) slide in and introduce the island ----------
 const CAST = A.cast, castEl = document.getElementById('cast'), ch = {};
 // per island: Pero's top (fraction of the frame height) - kept clear of the island's right edge
-const PERO_TOP = { learn: .5, ar: .5, play: .5 };
+const PERO_TOP = { learn: .56, ar: .56, play: .56 };
 if (CAST) {
   for (const k of ['winni', 'pero']) { const d = document.createElement('div'); d.className = 'ch';
     d.innerHTML = CAST[k].layers.map(l => `<img src="${l.uri}" style="transform-origin:${l.piv[0] * 100}% ${l.piv[1] * 100}%">`).join(''); castEl.appendChild(d); ch[k] = { el: d, imgs: [...d.children] }; }
-  for (const k of ['b1', 'b2']) { const b = document.createElement('div'); b.className = 'bub ' + (k === 'b1' ? 'l' : 'r'); castEl.appendChild(b); ch[k] = { el: b }; }
+  for (const k of ['b1', 'b2']) { const b = document.createElement('div'); b.className = 'bub ' + (k === 'b1' ? 'l' : 'r'); castEl.appendChild(b); b.dataset.name = k === 'b1' ? '위니' : '페로'; ch[k] = { el: b }; }
 }
 let castE = 0, castZone = null, castT0 = 0;
 function layoutCast(){ if (!CAST) return;
@@ -526,13 +580,14 @@ function layoutCast(){ if (!CAST) return;
   const a = innerWidth / innerHeight, fw = a >= W / H ? innerHeight * W / H : innerWidth, fh = fw * H / W, ox = (innerWidth - fw) / 2, oy = (innerHeight - fh) / 2;
   Object.assign(castEl.style, { left: ox + 'px', top: oy + 'px', width: fw + 'px', height: fh + 'px', fontSize: fh * .026 + 'px' });
   const wh = fh * .42, ph = fh * .21, w = ch.winni.el.style, p = ch.pero.el.style;
-  Object.assign(w, { height: wh + 'px', width: wh * CAST.winni.w / CAST.winni.h + 'px', left: fw * .02 + 'px', top: fh - wh - fh * .015 + 'px' });
+  Object.assign(w, { height: wh + 'px', width: wh * CAST.winni.w / CAST.winni.h + 'px', left: fw * .02 + 'px', top: fh - wh - fh * .06 + 'px' });
   const pw = ph * CAST.pero.w / CAST.pero.h, pt = (PERO_TOP[castZone] || .5) * fh;
   Object.assign(p, { height: ph + 'px', width: pw + 'px', left: fw - pw - fw * .025 + 'px', top: pt + 'px' });
-  // speech comes from beside each face: Winni's bubble to her right, Pero's to his left (tails point at the speaker)
-  const wl = fw * .02, wwd = wh * CAST.winni.w / CAST.winni.h, wt = fh - wh - fh * .015;
-  Object.assign(ch.b1.el.style, { left: wl + wwd * 1.02 + 'px', top: wt + wh * .1 + 'px' });
-  Object.assign(ch.b2.el.style, { right: pw + fw * .04 + 'px', left: 'auto', top: pt + ph * .38 + 'px' }); }
+  // 말풍선은 각 캐릭터 머리 위: 아래 끝(top)을 머리 위에 맞추고 꼬리는 아래로 얼굴 가운데를 가리킴
+  const wl = fw * .02, wwd = wh * CAST.winni.w / CAST.winni.h, wt = fh - wh - fh * .06, gap = fh * .055;
+  const tx1 = wwd * .45, tx2 = pw * .55;
+  Object.assign(ch.b1.el.style, { left: wl + 'px', top: wt - gap + 'px', transformOrigin: tx1 + 'px 100%' }); ch.b1.el.style.setProperty('--tx', tx1 + 'px');
+  Object.assign(ch.b2.el.style, { right: fw * .025 + 'px', left: 'auto', top: pt - gap + 'px', transformOrigin: `calc(100% - ${tx2}px) 100%` }); ch.b2.el.style.setProperty('--tx', tx2 + 'px'); }
 function setCastZone(k){ if (!CAST) return; castZone = k; castT0 = T; const L = ZONES[k].lines || []; ch.b1.el.textContent = L[0] || ''; ch.b2.el.textContent = L[1] || ''; ch.b1.el.style.display = L[0] ? '' : 'none'; ch.b2.el.style.display = L[1] ? '' : 'none'; layoutCast(); }
 function animCast(){ if (!CAST) return; castEl.style.display = castE > 0 ? '' : 'none'; if (castE <= 0) return;
   const t = T - castT0, e = castE, back = x => { x = clamp(x, 0, 1); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
@@ -551,7 +606,7 @@ function animCast(){ if (!CAST) return; castEl.style.display = castE > 0 ? '' : 
   pe.style.transform = `scale(${1 + sm * .06}, ${1 - sm * .9})`; pm.style.transform = `scale(${1 + sm * .14}, ${1 - sm * .1})`;
   // speech bubbles pop after the hosts arrive
   const b1 = back((t - .5) / .35) * e, b2 = back((t - .9) / .35) * e;
-  ch.b1.el.style.transform = `translateY(-50%) scale(${b1})`; ch.b2.el.style.transform = `translateY(-50%) scale(${b2})`; ch.b1.el.style.opacity = Math.min(1, b1 * 2); ch.b2.el.style.opacity = Math.min(1, b2 * 2); }
+  ch.b1.el.style.transform = `translateY(-100%) scale(${b1})`; ch.b2.el.style.transform = `translateY(-100%) scale(${b2})`; ch.b1.el.style.opacity = Math.min(1, b1 * 2); ch.b2.el.style.opacity = Math.min(1, b2 * 2); }
 addEventListener('resize', layoutCast);
 window.WV10 = { openZone, closeZone, setWeather, get mode(){ return mode; }, get night(){ return night; } };
 })();
