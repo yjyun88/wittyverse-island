@@ -1,0 +1,22 @@
+# 안드로이드 빌드
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+.kotlin/
+*.iml
+*.apk
+*.idsig
+
+# 생성물(build.sh 가 만듦)
+android/app/src/main/assets/
+web/island3d/build/
+
+# 파이썬
+__pycache__/
+*.pyc
+
+# 기타
+.DS_Store
+Thumbs.db

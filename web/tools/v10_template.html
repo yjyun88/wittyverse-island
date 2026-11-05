@@ -1,0 +1,558 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>위티버스 월드맵 라이브 2D v10</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#050a18}
+#gl{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+#back{position:fixed;left:24px;top:20px;height:60px;padding:0 24px 0 10px;display:flex;align-items:center;gap:10px;border-radius:999px;border:2px solid rgba(255,255,255,.9);color:#fff;font:900 20px "Pretendard","Malgun Gothic",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);background:linear-gradient(135deg,#4fb3ff,#2a7fe0);transition:opacity .35s,background .8s,transform .15s;-webkit-tap-highlight-color:transparent}#exit{position:fixed;left:24px;top:20px;height:60px;padding:0 24px 0 10px;display:flex;align-items:center;gap:10px;border-radius:999px;border:2px solid rgba(255,255,255,.9);color:#fff;font:900 20px "Pretendard","Malgun Gothic",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);background:linear-gradient(135deg,#4fb3ff,#2a7fe0);transition:opacity .35s,background .8s,transform .15s;-webkit-tap-highlight-color:transparent}#exit.night{background:linear-gradient(135deg,#2b2f7a,#141a45)}#exit:active{transform:scale(.94)}#exit .ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.22)}#exit .ic svg{width:24px;height:24px}#back.night{background:linear-gradient(135deg,#2b2f7a,#141a45)}#back:active{transform:scale(.94)}#back .ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.22)}#back .ic svg{width:24px;height:24px}
+#ztitle{position:fixed;left:50%;top:22px;transform:translateX(-50%);padding:10px 30px;border-radius:999px;color:#fff;font:900 26px "Pretendard","Malgun Gothic",sans-serif;background:rgba(10,18,40,.55);border:2px solid rgba(255,255,255,.85);transition:opacity .35s}
+#wx{position:fixed;right:24px;top:20px;height:60px;padding:0 22px 0 10px;display:flex;align-items:center;gap:10px;border-radius:999px;border:2px solid rgba(255,255,255,.9);color:#fff;font:900 20px "Pretendard","Malgun Gothic",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:opacity .35s,background .8s,transform .15s;-webkit-tap-highlight-color:transparent}
+#wx.day{background:linear-gradient(135deg,#4fb3ff,#2a7fe0)}
+#wx.night{background:linear-gradient(135deg,#2b2f7a,#141a45)}
+#wx:active{transform:scale(.94)}
+#wx .ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:28px;background:rgba(255,255,255,.22);transition:transform .8s}
+#wx.night .ic{transform:rotate(-360deg)}
+.hide{opacity:0!important;pointer-events:none!important}
+#s3d{position:fixed;right:24px;top:98px;height:52px;padding:0 20px 0 12px;display:flex;align-items:center;gap:8px;border-radius:999px;border:2px dashed rgba(255,255,255,.85);color:#fff;font:800 18px "Pretendard","Malgun Gothic",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);background:linear-gradient(135deg,#8b5cf6,#5b3fd0);transition:opacity .35s;-webkit-tap-highlight-color:transparent;z-index:5}
+#cast{position:fixed;left:0;top:0;pointer-events:none;overflow:hidden}
+#cast .ch{position:absolute;will-change:transform}
+#cast .ch img{position:absolute;left:0;top:0;width:100%;height:100%;will-change:transform}
+#cast .bub{position:absolute;padding:.55em 1em;border-radius:1em;background:rgba(255,255,255,.95);color:#1d2340;font-weight:900;white-space:nowrap;font-family:"Pretendard","Malgun Gothic",sans-serif;box-shadow:0 .3em .9em rgba(0,0,0,.35)}
+#cast .bub.l{transform-origin:0 50%}
+#cast .bub.r{transform-origin:100% 50%}
+#cast .bub::after{content:"";position:absolute;top:50%;margin-top:-.55em;border:.55em solid transparent}
+#cast .bub.l::after{left:-.58em;border-right:.6em solid rgba(255,255,255,.95);border-left:0}
+#cast .bub.r::after{right:-.58em;border-left:.6em solid rgba(255,255,255,.95);border-right:0}
+#hud{position:fixed;right:12px;bottom:10px;color:#8ff7a7;font:700 12px ui-monospace,monospace;background:rgba(0,0,0,.45);padding:4px 8px;border-radius:8px}
+
+/* MW_THEME: 낮 = D 나무 팻말, 밤 = E 별빛 글래스 (버튼·영역 제목). 폰트는 쓰는 글자만 남긴 서브셋 */
+@font-face{font-family:"MwTmoney";src:url(data:font/woff;base64,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) format("woff")}
+@font-face{font-family:"MwPretendard";font-weight:600;src:url(data:font/woff;base64,d09GRk9UVE8AAAjkAAsAAAAADdwAAU8aAAAAAAAAAAAAAAAAAAAAAAAAAABDRkYgAAAE1AAAA6sAAARi97kdQkdQT1MAAAiAAAAAIAAAACBEdkx1R1NVQgAACKAAAAApAAAAKrj6uPRPUy8yAAABaAAAAFAAAABgJJcxjmNtYXAAAARwAAAATQAAAGz1prizaGVhZAAAAQgAAAA2AAAANi8tCPZoaGVhAAABQAAAAB8AAAAkDzoGL2htdHgAAAjMAAAAFgAAABYQLAH8bWF4cAAAAWAAAAAGAAAABgAJUABuYW1lAAABuAAAArYAAAcGtaDTFHBvc3QAAATAAAAAEwAAACD/HwCsAAEAAAABTxoyrXFkXw889QADCAAAAAAA4W1u6QAAAADnDgBPADL+PAdoB2wAAAAHAAIAAAAAAAB4nGNgZGBgn/dPiIGBg4HBiEGKPYMBKIICmABD3gJ9AAAAUAAACQAAeJxjYGFbzhTBwMrAwGrEco6BgWE2hGY6zbCGqQdIM7AzM4AoFiDJwMiAAM4hocEMB9YwnDzAPvefEAMD+1zGdzAlLHasK4CUAgMPAKRRDm94nJ1U0U4TQRQ9LaVKVFITn4wP+2TAQKmoD1pjAhS0UAtq8X3bLu1q2SXdraR/4i+Y+B3GTzF+hWfOjNsWCyGGDL1z595zz5x7ZwGU8AMLyBWWALzksnYOD7mzdh7LaDt7gd4zZxemYhbxCt+dXaT/t7Nv5Gq5krNv4n6+5eyl/KN85OxbqBS+Ovv2lH0n5xV+OnsZTxd/ObuEe8UHzr6LUrGCHcRkNcYQIXroI4WHb1ybqHA9oXXAkwF/3zBqhIhR6/hEX4QjZgXMCGh34XPXZdwH7k95vk3kAT3vue8xc6CIxygTtYLnqLJ2C8eMr85FWv8H6SP3QyT0xIzzZrBeM2LMm/R57tFbJnsPK7Q2+fcMq9esMf9OoVB9rpQenz6TZU4/0xfj5EqdqvTW+ZuKv8c714UWCXv65Dp1jAKnXFVpHbPWEB3GXS97i96YM2njI8X2tTvmLhQT28WUmWaXZFw3mDkUks0xdkcMIlUMFV2+QoltIiWq1pvp1wmzY3KdVaPNCI/z4+vGI0VuiYmdg0RzUFUlX3UCzdnl6E1xj3U/k2FOd7BPxisXtLSIk7jVjM++q2XVj3m3sdOgN9XVgyxqP4sKxHctQ+1q5gbiYPidCiUkA6O8nXLbZ4vmX3Gzt1xHaOg9mZdxlvE12EZ9ExOrSwmzQ/V3TX1vooZd6ryHQ/7fJUKL/pqsOl9WUxwsx7b6aGfk712H2gd6mb3s1Oo8/z1ZZpfPSVlfopS3SPCCc7fhmBtFjDodno00ax2x2iDjvpv/PUWlrj8ntM5Vd/JCBtI4kLqW6yibqsl7MHdv8PeQLALNwgS5MYNgVJz3bTLLm2I2W3fyXr9whfo+tvnfnJyrP333mvc49e9kp1TDy7SxyiTENNqc0WcUSYRVlmI9nh8yv/FfOfN6d+F7+QegmiMqAAB4nGNgYGBiYGBgBmIRIMkIplkYIoC0EIMAUIRpDcM6gw0zNqzbfGRHzB6Vkwf+/2dgwBQLYQy85J/tH+bj6L7K+bGZB9gkNAAAooIc8wAAAHicY2BmAIP/MgxrGLAAACkFAcsAeJxtUl1MHFUUvlOWuzA7joiMWdbrMqW0tQhl3T6UUhKxIgHcbAgtiQ/YuO1sYXHZxWGwhTQ8kBgxNEiMmgbbSA0PtZC2aZMGG4xEibZN02DTBx/8SdNNY3xQoqTnzpzZrXdNK5r6cs+93zn3/Hznk4hnA5EkqazDjFvxlBEzjdq98f7EnnTSyOMv8Kc5m1CC/BmJBzfwigKue/CGUgBNiucL91Xm7WXeZGEwEPpEqWANUaUS7jwOa8pme1KpAvcJ4pUkqs5/efW7zItG+kC8zYinrIQ1/FJ6YNhM9PRa+lef6eFQeIf+SiKptw4PpXpq+xIpfb0bPTGox3TLjBnx/pj5hp4+9N/Q3XpbyoqbelebHksZDx6P/jEH+wd363vTQ+bB+P+4/25OF4Wt3rje9a/qD7lYhx5F1gkjhJKikHxcPvvYcmn3U1WblgqIJFBSTIoFzaSWvEwOk1nyOflBUqTt0lFnG9QwOqYxugKjzA5Rdm/Fs02GzvzRkT/2PbyprHCZ0f1apexUwQxEcYa6Jp9+Tma0UuC6TN3zjHZo2XvYbJdRw63DAfzG7cchKMIWv63CEhh8Pz8bUEU1p17DGTsqkoVghjJn3N6n4QDDA1BDRfZLJ7+F5YpB6KiTN8u5UTB5NUxBBKdojsOtapkVcntRy53h7zsnoIVhILvGP3DD2e4qOWvwMJ+nosh5SGpZAy7za9Ceuw6jzqf8e4Yl2OqcRis362b4cbyc7cYIo5aIL7zBJ2tkp5XRlo0yb98iMxyHm6KrbMb+w85sl+0RZ1WDGq5DJDeFEV6JNV68gi2YwQvoD0IZ7oHe3yEMxs9wrPxHHIEQdkJfHajQ7McFUIX/OiwG7Gv8o2flvLrL+UZlS7B17Nh7ExMPjOI9Z8+VDp1ybp6CXy7S4M6v7yvFHyvyhOKDPhmmfYz+Wubc1849SUryK5VJKQmQCrKVPE92kSbSTKJknqyQW+Qu4VKBhhbjq2D5NDRzM2D60GR8TdgifoSq2C5Gh3afmD2/WjR9guWoYNnHPILqVp/YqvqPNkQOK7sA1RSm4czJq7BU8Sa044kuHD+MR98tZ55Rt0hjgo8WPkIt3Imv4w68HbuDjX6Yuwg9oPwJ9atYD71YAnMHb0OjH39aQAN2DUF4k6xl72LEpvQ1oZwxvOJGMA2l2OTnv8EiDPBD/HRA1WplHxMbqd4q8yOancTlbJL6hNDG3QbqNnpgkjfgpFfF2U788C18+51y9S+Mfe+sAAABAAAACgAcAB4AAURGTFQACAAEAAAAAP//AAAAAAAAeJxjYGRgYOBiUGPQYGBycfMJYeDLSSzJY5BgYAGKM/z/zwAHAG2XBV0AAAAIAACYBuoAMgBIAHwAigA8ADwAegA0AAA=) format("woff")}
+#back,#exit,#wx.day{height:62px;padding:0 26px 0 10px;border-radius:16px;border:3px solid #6b3f1d;color:#fff4dc;
+  font:25px "MwTmoney","Pretendard",sans-serif;text-shadow:0 2px 0 #5a3315;-webkit-backdrop-filter:none;backdrop-filter:none;
+  background:repeating-linear-gradient(176deg,rgba(90,51,21,.10) 0 2px,transparent 2px 10px),linear-gradient(180deg,#dba46b,#bb7c41 60%,#9b6331);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.35),inset 0 -4px 0 rgba(0,0,0,.18),0 5px 0 #4a2a12,0 12px 16px rgba(0,0,0,.35)}
+#back::before,#exit::before,#wx.day::before,#back::after,#exit::after,#wx.day::after{content:"";position:absolute;top:6px;bottom:auto;width:7px;height:7px;padding:0;
+  border-radius:50%;background:radial-gradient(circle at 35% 35%,#e9d3b0,#5a3315 70%);-webkit-mask:none;mask:none;filter:none;pointer-events:none}
+#back::before,#exit::before,#wx.day::before{left:7px;right:auto}
+#back::after,#exit::after,#wx.day::after{right:7px;left:auto}
+#back .ic,#exit .ic,#wx.day .ic{width:42px;height:42px;border-radius:50%;background:rgba(90,51,21,.35);border:2px solid rgba(255,240,210,.55)}
+
+#back.night,#exit.night,#wx.night{height:60px;padding:0 26px 0 9px;border-radius:999px;border:0;color:#fff;font:600 22px "MwPretendard","Pretendard",sans-serif;
+  background:linear-gradient(180deg,rgba(40,60,140,.55),rgba(20,30,90,.40));
+  -webkit-backdrop-filter:blur(12px) saturate(1.4);backdrop-filter:blur(12px) saturate(1.4);
+  text-shadow:0 0 10px rgba(150,215,255,.95),0 1px 2px rgba(0,20,60,.8);box-shadow:0 0 22px rgba(160,170,255,.7),0 8px 18px rgba(0,0,0,.3)}
+#back.night::before,#exit.night::before,#wx.night::before,#back.night::after,#exit.night::after,#wx.night::after{content:"";position:absolute;pointer-events:none}
+#back.night::before,#exit.night::before,#wx.night::before{top:0;right:0;bottom:0;left:0;width:auto;height:auto;border-radius:inherit;padding:2.5px;
+  background:linear-gradient(135deg,#7ef3ff,#b18cff 55%,#ff9ad5);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+#back.night::after,#exit.night::after,#wx.night::after{top:-8px;right:-6px;left:auto;width:20px;height:20px;border-radius:0;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23fff' d='M12 0c.6 6 2.4 9.8 12 12-9.6 2.2-11.4 6-12 12-.6-6-2.4-9.8-12-12C9.6 9.8 11.4 6 12 0z'/></svg>") center/contain no-repeat;filter:drop-shadow(0 0 6px #fff)}
+#back.night .ic,#exit.night .ic,#wx.night .ic{width:44px;height:44px;border:0;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.75),rgba(255,255,255,.12) 70%)}
+
+#ztitle{top:14px;padding:8px 44px;border-radius:16px;border:4px solid #6b3f1d;color:#fff4dc;white-space:nowrap;
+  font:36px "MwTmoney","Pretendard",sans-serif;text-shadow:0 3px 0 #5a3315;-webkit-backdrop-filter:none;backdrop-filter:none;
+  background:radial-gradient(circle at 20px 12px,#e9d3b0 0 2px,#5a3315 3px 4.5px,transparent 5px),
+    radial-gradient(circle at calc(100% - 20px) 12px,#e9d3b0 0 2px,#5a3315 3px 4.5px,transparent 5px),
+    repeating-linear-gradient(176deg,rgba(90,51,21,.10) 0 2px,transparent 2px 11px),linear-gradient(180deg,#dba46b,#bb7c41 60%,#9b6331);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.35),inset 0 -5px 0 rgba(0,0,0,.18),0 6px 0 #4a2a12,0 0 30px rgba(255,186,90,.35),0 14px 18px rgba(0,0,0,.45)}
+#ztitle::before,#ztitle::after{content:"";position:absolute;top:auto;bottom:calc(100% + 4px);width:6px;height:46px;padding:0;border-radius:3px;
+  background:repeating-linear-gradient(160deg,#e3c38d 0 4px,#b48a52 4px 8px);-webkit-mask:none;mask:none;pointer-events:none}
+#ztitle::before{left:22%;right:auto}
+#ztitle::after{right:22%;left:auto}
+#ztitle.night{top:22px;padding:10px 40px;border-radius:999px;border:0;color:#fff;
+  text-shadow:0 0 12px rgba(190,230,255,.95),0 1px 2px rgba(0,20,60,.8);
+  background:linear-gradient(180deg,rgba(40,60,140,.55),rgba(20,30,90,.40));
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 0 30px rgba(170,150,255,.75)}
+#ztitle.night::before{top:0;right:0;bottom:0;left:0;width:auto;height:auto;border-radius:inherit;padding:2.5px;
+  background:linear-gradient(135deg,#7ef3ff,#b18cff 55%,#ff9ad5);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+#ztitle.night::after{display:none}
+
+/* MW_THEME 낮 제목 낙하: 위에서 떨어져 살짝 튕기고, 밧줄 위쪽을 축으로 좌우로 흔들리다 멈춤 */
+@keyframes mwSignDrop{
+  0%{transform:translateX(-50%) translateY(-150px) rotate(0)}
+  45%{transform:translateX(-50%) translateY(10px) rotate(0)}
+  58%{transform:translateX(-50%) translateY(-5px) rotate(3deg)}
+  72%{transform:translateX(-50%) translateY(2px) rotate(-2deg)}
+  86%{transform:translateX(-50%) translateY(0) rotate(.8deg)}
+  100%{transform:translateX(-50%) translateY(0) rotate(0)}}
+#ztitle:not(.hide):not(.night){transform-origin:50% -50px;animation:mwSignDrop .95s cubic-bezier(.3,.7,.4,1) both}
+@media (prefers-reduced-motion:reduce){#ztitle:not(.hide):not(.night){animation:none}}
+
+/* MW_THEME 밤 반짝임 */
+@keyframes mwTwinkle{0%,100%{opacity:.5;transform:scale(.72) rotate(0)}45%{opacity:1;transform:scale(1.18) rotate(18deg)}60%{opacity:.95;transform:scale(1) rotate(12deg)}}
+#back.night::after,#exit.night::after,#wx.night::after{animation:mwTwinkle 2.4s ease-in-out infinite}
+#exit.night::after{animation-delay:0s}
+#back.night::after{animation-delay:.6s}
+#wx.night::after{animation-delay:1.3s}
+@keyframes mwBurst{0%{opacity:0;transform:scale(.4) rotate(-20deg)}35%{opacity:1;transform:scale(1.12) rotate(0)}100%{opacity:0;transform:scale(1.35) rotate(25deg)}}
+@keyframes mwFadeIn{0%{opacity:0}100%{opacity:1}}
+@keyframes mwShine{0%{background-position:100% 0,0 0}100%{background-position:0 0,0 0}}
+@keyframes mwTextGlow{0%,30%{text-shadow:0 0 18px #fff,0 0 34px #c9b8ff,0 1px 2px rgba(0,20,60,.8)}100%{text-shadow:0 0 12px rgba(190,230,255,.95),0 1px 2px rgba(0,20,60,.8)}}
+#ztitle.night{background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.55) 50%,transparent 60%),linear-gradient(180deg,rgba(40,60,140,.55),rgba(20,30,90,.40));background-size:250% 100%,100% 100%;background-repeat:no-repeat;background-position:0 0,0 0}
+#ztitle.night:not(.hide){animation:mwFadeIn .45s ease-out both,mwShine .9s .12s ease-in-out both,mwTextGlow 1.1s ease-out both}
+#ztitle.night::after{display:block;content:"";position:absolute;width:auto;height:auto;border-radius:0;top:-26px;right:-34px;bottom:-26px;left:-34px;pointer-events:none;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23fff' d='M12 0c.6 6 2.4 9.8 12 12-9.6 2.2-11.4 6-12 12-.6-6-2.4-9.8-12-12C9.6 9.8 11.4 6 12 0z'/></svg>"),url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23fff' d='M12 0c.6 6 2.4 9.8 12 12-9.6 2.2-11.4 6-12 12-.6-6-2.4-9.8-12-12C9.6 9.8 11.4 6 12 0z'/></svg>"),url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23fff' d='M12 0c.6 6 2.4 9.8 12 12-9.6 2.2-11.4 6-12 12-.6-6-2.4-9.8-12-12C9.6 9.8 11.4 6 12 0z'/></svg>"),url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23fff' d='M12 0c.6 6 2.4 9.8 12 12-9.6 2.2-11.4 6-12 12-.6-6-2.4-9.8-12-12C9.6 9.8 11.4 6 12 0z'/></svg>"),url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23fff' d='M12 0c.6 6 2.4 9.8 12 12-9.6 2.2-11.4 6-12 12-.6-6-2.4-9.8-12-12C9.6 9.8 11.4 6 12 0z'/></svg>"),url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23fff' d='M12 0c.6 6 2.4 9.8 12 12-9.6 2.2-11.4 6-12 12-.6-6-2.4-9.8-12-12C9.6 9.8 11.4 6 12 0z'/></svg>");background-position:4% 8%,96% 14%,14% 96%,86% 92%,50% -6%,-2% 58%;background-size:18px 18px,22px 22px,14px 14px,16px 16px,12px 12px,12px 12px;background-repeat:no-repeat;
+  filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 12px #b9a4ff);opacity:0}
+#ztitle.night:not(.hide)::after{animation:mwBurst 1.3s .15s ease-out both}
+@media (prefers-reduced-motion:reduce){#back.night::after,#exit.night::after,#wx.night::after,#ztitle.night:not(.hide),#ztitle.night:not(.hide)::after{animation:none}}
+</style></head><body>
+<canvas id="gl"></canvas><button id="exit" aria-label="나가기"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg></span><span class="tx">나가기</span></button><button id="back" class="hide" aria-label="지도로 돌아가기"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></span><span class="tx">지도로</span></button><div id="ztitle" class="hide"></div>
+<button id="s3d" class="hide" aria-label="3D 샘플 보기">🧪 3D 샘플</button><button id="wx" class="day" aria-label="날씨 변경"><span class="ic">☀️</span><span class="tx">낮</span></button><div id="cast"></div><div id="hud"></div>
+<script>__THREE__</script>
+<script>
+(function(){
+'use strict';
+const A = __ASSETS__, W = A.W, H = A.H, S = A.spots, K = W / 1376;          // effects are authored at 1376px width and scaled by K
+const LOW = /Android/i.test(navigator.userAgent);
+const R = new THREE.WebGLRenderer({ canvas: document.getElementById('gl'), antialias: false, powerPreference: 'high-performance' });
+R.setPixelRatio(Math.min(devicePixelRatio || 1, LOW ? 1.25 : 2)); R.setSize(innerWidth, innerHeight, false); R.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(0, W, H, 0, -10, 10);
+const P = (x, y) => [x / K, (H - y) / K];                                         // image px -> effect space (fx group is scaled by K)
+const fx = new THREE.Group(); fx.scale.set(K, K, 1);
+const loader = new THREE.TextureLoader();
+const tex = (u, srgb = true) => { const t = loader.load(u); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return t; };
+const U = { uT: { value: 0 }, uN: { value: 0 } };                                  // uN: 0 day .. 1 night
+// random texels + bilinear filtering = value noise for one texture read (sin-hash noise per pixel was the frame cost on Mali)
+const noiseTex = (() => { const n = 256, d = new Uint8Array(n * n * 4); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 256;
+  const t = new THREE.DataTexture(d, n, n, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t; })();
+const NOISE_TEX = `uniform sampler2D uNoise;
+  float h(vec2 p){ return texture2D(uNoise, (floor(p) + .5) / 256.).g; }
+  float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return texture2D(uNoise, (i + f + .5) / 256.).r; }
+  float fbm(vec2 p){ return n(p) * .55 + n(p * 2.1 + 3.) * .3 + n(p * 4.3 + 7.) * .15; }`;
+const NOISE = `float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + 1.), f.x), f.y); }
+  float fbm(vec2 p){ return n(p) * .55 + n(p * 2.1 + 3.) * .3 + n(p * 4.3 + 7.) * .15; }`;
+
+// ---------- the illustration with its living layers: day and night pictures share one layout and one set of masks ----------
+const [ffx, ffy] = [S.fallFoot[0] / K, S.fallFoot[1] / K];
+const base = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.ShaderMaterial({
+  uniforms: { uT: U.uT, uN: U.uN, uNoise: { value: noiseTex }, uNight: { value: tex(A.night) }, uDay: { value: tex(A.day) }, uM1: { value: tex(A.m1, false) }, uM2: { value: tex(A.m2, false) }, uGlow: { value: tex(A.glow) },
+    uRes: { value: new THREE.Vector2(W / K, H / K) }, uHz: { value: new THREE.Vector3(A.horizon[0] / K, A.horizon[1] / K, (A.horizon[2] || 0) / K) }, uFoot: { value: new THREE.Vector2(ffx, ffy) } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+  fragmentShader: `uniform float uT, uN; uniform sampler2D uNight, uDay, uM1, uM2, uGlow; uniform vec2 uRes, uFoot; uniform vec3 uHz; varying vec2 vUv; ${NOISE_TEX}
+    // waterfall: the painted water slides down (two-phase flow so it never jumps), foam streaks on top
+    vec3 fall(sampler2D B, vec3 c, vec2 uv, vec2 px, float water, vec3 foam){
+      float sp = .055, ph0 = fract(uT * .55), ph1 = fract(uT * .55 + .5), wv = abs(ph0 - .5) * 2.;
+      vec2 o = vec2(sin(px.y * .05 + uT * 2.) * .0006, 0.);
+      vec3 fl = mix(texture2D(B, uv + o + vec2(0., ph0 * sp * .14)).rgb, texture2D(B, uv + o + vec2(0., ph1 * sp * .14)).rgb, wv);
+      float streak = smoothstep(.55, .95, n(vec2(px.x * .22, px.y * .018 - uT * 3.2))) * .55 + smoothstep(.7, 1., n(vec2(px.x * .5, px.y * .04 - uT * 4.5))) * .45;
+      float onFall = smoothstep(uFoot.y + 20., uFoot.y - 20., px.y); float churn = smoothstep(.55, .9, fbm(px * .06 + vec2(uT * .6, -uT * .9))) * (1. - onFall);
+      fl += foam * (streak * .42 * onFall + churn * .35);
+      return mix(c, fl, water * .85);
+    }
+    // the stream fanning out from the plunge pool into the sea, with moving caustic lines
+    float stream(vec2 px){ vec2 d = px - uFoot; return exp(-length(d * vec2(.55, 1.)) / 150.) * smoothstep(-30., 40., d.y); }
+    float caustic(vec2 px){ vec2 d = px - uFoot; float r = length(d * vec2(.5, 1.)); float w = fbm(px * .02 + uT * .1) * 6.;
+      return pow(.5 + .5 * sin(r * .16 - uT * 2.4 + w), 10.) * smoothstep(.3, .7, n(vec2(atan(d.x, d.y + 40.) * 14., r * .02 - uT * .3))); }
+    vec3 nightShade(vec2 uv, vec2 px, vec4 m1, vec4 m2){
+      float water = m1.r, sea = m1.g, sky = m1.b, star = m1.a, emis = m2.r, shore = m2.g * 160.;
+      vec3 c = texture2D(uNight, uv).rgb;
+      if (water > .01) c = fall(uNight, c, uv, px, water, vec3(.75, .95, 1.));
+      // sea: glowing rings rolling out from the shore, shimmer, plankton sparkles, the glowing stream
+      if (sea > .01) {
+        float ring = pow(.5 + .5 * sin(shore * .11 - uT * 1.6 + fbm(px * .012 + uT * .05) * 5.), 8.) * exp(-shore / 30.) * smoothstep(.35, .7, fbm(px * .01 - uT * .04));
+        float edge = exp(-shore / 16.) * (.75 + .25 * sin(uT * 1.7 + px.x * .02));
+        float sh = smoothstep(.62, .9, fbm(px * vec2(.018, .05) + vec2(uT * .12, uT * .05)));
+        vec2 cell = floor(px / 7.); float sp = step(.985, h(cell)) * smoothstep(1.8, .3, length(fract(px / 7.) * 7. - 3.5)) * (.5 + .5 * sin(uT * (2. + h(cell + 7.) * 4.) + h(cell) * 40.)) * smoothstep(260., 30., shore);
+        float st = stream(px);
+        c += (vec3(.25, .9, 1.) * (ring * .38 + edge * .62 + st * .4 + caustic(px) * st * 1.1) + vec3(.4, .8, 1.) * sh * .14 * smoothstep(300., 0., shore) + vec3(.7, 1., 1.) * sp * .9) * sea;
+      }
+      // sky: aurora curtains and light shafts from the top, twinkling stars, a rare shooting star
+      if (sky > .01) {
+        float y = px.y / (uHz.x + 2.);                                               // 0 top .. 1 horizon
+        float cur = fbm(vec2(px.x * .006 + uT * .03, uT * .05)); float fold = pow(fbm(vec2(px.x * .02 + cur * 4., y * .6 - uT * .06)), 3.) * 1.6 * smoothstep(.25, .6, fbm(vec2(px.x * .003 - uT * .015, 2.)));
+        float band = smoothstep(.04, .25, y) * smoothstep(.98, .5, y);                     // curtains hang in the upper sky, clear of the horizon
+        vec3 aur = mix(vec3(.08, .95, .55), vec3(.15, .8, .9), smoothstep(.3, .8, n(vec2(px.x * .004 + uT * .02, 1.)))) * fold * band * 1.25;
+        vec2 d = px - vec2(uRes.x * .5, -120.); float ang = atan(d.x, d.y);
+        float rays = pow(n(vec2(ang * 9. + uT * .04, 0.)), 4.) * smoothstep(700., 150., length(d)) * .12;
+        float lum = dot(c, vec3(.3, .59, .11));
+        c += (aur * (1. - lum * .6) + vec3(.55, .85, 1.) * rays * (1. - lum)) * sky;
+        c *= 1. + star * .9 * max(0., sin(uT * (2.5 + h(floor(px)) * 4.) + h(floor(px) + 3.) * 30.));   // twinkle only brightens
+        float ss = fract(uT / 7.), k = floor(uT / 7.); vec2 a = vec2(80. + h(vec2(k, 1.)) * 700., 15. + h(vec2(k, 2.)) * 50.), dir = normalize(vec2(1., .3));
+        float life = ss / .2; vec2 q = px - (a + dir * life * 1000.); float al = dot(q, dir), pe = abs(dot(q, vec2(-dir.y, dir.x)));
+        float tail = 380. * smoothstep(0., .25, life); float fade = step(ss, .2) * smoothstep(1., .75, life);
+        c += vec3(.8, .95, 1.) * fade * smoothstep(1.8, 0., pe * (1. - al / tail * .5)) * step(-tail, al) * step(al, 0.) * pow(max(1. + al / tail, 0.), 1.6) * sky * 1.5;
+        c += vec3(.9, 1., 1.) * fade * smoothstep(5., 0., length(q)) * sky * 1.2;
+      }
+      float hx = (px.x - uRes.x * .5) / (uRes.x * .5), hzY = uHz.x + hx * hx * uHz.y + hx * uHz.z, dh = px.y - hzY;   // no pow() on negatives (undefined on Mali)
+      c += vec3(.3, .75, 1.) * (exp(-abs(dh) / 7.) * .35 + exp(-max(dh, 0.) / 45.) * step(0., dh) * .16 + exp(-max(-dh, 0.) / 30.) * step(dh, 0.) * .1) * (sky + sea) * (.85 + .15 * sin(uT * .8 + px.x * .01));
+      // light sources breathe and bloom (neon, fire, windows, crystals) with a travelling phase so they don't pulse in sync
+      float pulse = .62 + .38 * sin(uT * 2.4 + px.x * .021 + px.y * .013) * (.6 + .4 * n(vec2(px.x * .05, uT * 1.3)));
+      c += texture2D(uGlow, uv).rgb * (.55 + .5 * pulse) + c * emis * (pulse - .5) * .5;
+      // grade towards the effects version: deeper blacks, cooler shadows
+      c = mix(c, c * c * 1.25, .18); c += vec3(.0, .012, .03) * (1. - c);
+      vec2 v = uv - .5; return c * (1. - dot(v, v) * .55);
+    }
+    vec3 dayShade(vec2 uv, vec2 px, vec4 m1, vec4 m2){
+      float water = m1.r, sea = m1.g, sky = m1.b, shore = m2.g * 160.;
+      vec3 c = texture2D(uDay, uv).rgb;
+      if (water > .01) c = fall(uDay, c, uv, px, water, vec3(.9, .98, 1.));
+      // sea in the sun: soft foam rings at the shore, drifting light bands and sun glints
+      if (sea > .01) {
+        float ring = pow(.5 + .5 * sin(shore * .11 - uT * 1.4 + fbm(px * .012 + uT * .05) * 5.), 10.) * exp(-shore / 22.) * smoothstep(.4, .75, fbm(px * .01 - uT * .04));
+        float sh = smoothstep(.6, .92, fbm(px * vec2(.02, .055) + vec2(uT * .1, uT * .04)));
+        vec2 cell = floor(px / 6.); float gl = step(.982, h(cell)) * smoothstep(1.6, .2, length(fract(px / 6.) * 6. - 3.)) * max(0., sin(uT * (2.5 + h(cell + 7.) * 4.) + h(cell) * 40.));
+        c += (vec3(1.) * ring * .22 + vec3(.85, .97, 1.) * sh * .1 + vec3(1., 1., .95) * gl * .8 + vec3(.6, 1., 1.) * stream(px) * .12) * sea;
+      }
+      // a slow sweep of sunlight over the sky
+      if (sky > .01) c += vec3(1., .97, .85) * smoothstep(.62, .95, n(vec2(px.x * .004 - uT * .05, px.y * .002))) * .06 * sky;
+      vec2 v = uv - .5; return c * (1. - dot(v, v) * .25);
+    }
+    void main(){
+      vec2 uv = vUv, px = vec2(uv.x, 1. - uv.y) * uRes;                    // px: image pixels (1376 scale), y down
+      vec4 m1 = texture2D(uM1, uv), m2 = texture2D(uM2, uv);
+      // the night comes down from the sky first (and leaves the same way)
+      float k = clamp((uN - (1. - uv.y) * .35) / .65, 0., 1.); k = k * k * (3. - 2. * k);
+      vec3 c = vec3(0.);
+      if (k < .999) c += dayShade(uv, px, m1, m2) * (1. - k);
+      if (k > .001) c += nightShade(uv, px, m1, m2) * k;
+      gl_FragColor = vec4(c, 1.);
+      #include <colorspace_fragment>
+    }` }));
+base.position.set(W / 2, H / 2, 0); scene.add(base); scene.add(fx);
+
+// ---------- particles (all animated on the GPU from a seed; no per-frame CPU work) ----------
+const dot = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.3, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const puff = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,.9)'); g.addColorStop(.55, 'rgba(255,255,255,.35)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const pxScale = { value: 1 };
+// opts.day: how much of the effect is left in the daytime (0 = night only)
+function points(n, seed, motion, opts){
+  const pos = new Float32Array(n * 3), sd = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) { const s = seed(i); pos.set([s[0], s[1], 0], i * 3); sd.set([Math.random(), Math.random(), Math.random(), i / n], i * 4); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aS', new THREE.BufferAttribute(sd, 4));
+  const day = (opts.day === undefined ? 1 : opts.day).toFixed(2);
+  const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: opts.add === false ? THREE.NormalBlending : THREE.AdditiveBlending,
+    uniforms: { uT: U.uT, uN: U.uN, uTex: { value: opts.tex || dot }, uPx: pxScale, uC: { value: new THREE.Color(...opts.color) } },
+    vertexShader: `uniform float uT, uN, uPx; attribute vec4 aS; varying float vA; varying vec4 vS; ${NOISE}
+      void main(){ vec3 p = position; float a = 1., sz = 1.; ${motion}
+        a *= mix(${day}, 1., uN); vS = aS; vA = a; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.); gl_PointSize = a > .001 ? sz * uPx : 0.; }`,
+    fragmentShader: `uniform sampler2D uTex; uniform vec3 uC; varying float vA; varying vec4 vS; void main(){ vec4 t = texture2D(uTex, gl_PointCoord); gl_FragColor = ${opts.add === false ? 'vec4(uC, t.a * vA)' : 'vec4(uC, 1.) * t * vA'}; }` });
+  const o = new THREE.Points(g, m); o.renderOrder = opts.order || 1; fx.add(o); return o;
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+const [fx0, fy0, fx1, fy1] = S.forest;
+// fireflies in the castle forest and golden sparkles over the AR island (night)
+points(LOW ? 60 : 90, () => P(rnd(fx0, fx1), rnd(fy0, fy1)),
+  `p.xy += vec2(sin(uT * (.3 + aS.x * .4) + aS.y * 6.28), cos(uT * (.25 + aS.z * .3) + aS.x * 6.28)) * 14.; a = pow(.5 + .5 * sin(uT * (1.5 + aS.z * 2.) + aS.y * 9.), 2.); sz = 9. + aS.x * 8.;`,
+  { color: [1, .9, .45], day: 0 });
+points(LOW ? 24 : 36, () => P(rnd(250, 820), rnd(560, 900)),
+  `p.xy += vec2(sin(uT * (.3 + aS.x * .4) + aS.y * 6.28), cos(uT * (.25 + aS.z * .3) + aS.x * 6.28)) * 18.; a = pow(.5 + .5 * sin(uT * (1.5 + aS.z * 2.) + aS.y * 9.), 2.); sz = 7. + aS.x * 6.;`,
+  { color: [1, .85, .4], day: 0 });
+// waterfall mist rising and spreading from the plunge pool
+const [mx, my] = P(S.fallFoot[0], S.fallFoot[1]);
+points(LOW ? 40 : 60, () => [mx + rnd(-90, 90), my + rnd(-25, 10)],
+  `float life = fract(uT * (.12 + aS.x * .08) + aS.y); p.y += life * (50. + aS.z * 50.); p.x += sin(life * 3. + aS.z * 6.) * 18. * life + (aS.x - .5) * 60. * life;
+   a = sin(life * 3.1416) * .32; sz = 40. + life * 90.;`, { color: [.85, .97, 1], tex: puff, add: false, order: 2 });
+points(LOW ? 30 : 50, () => [mx + rnd(-80, 80), my + rnd(-10, 15)],
+  `float life = fract(uT * (.5 + aS.x * .5) + aS.y); p.x += (aS.z - .5) * 80. * life; p.y += sin(life * 3.1416) * (25. + aS.x * 30.); a = (1. - life) * .9; sz = 4. + aS.z * 4.;`,
+  { color: [.8, 1, 1] });
+// glitter running along the painted rainbow ribbon (brush tip -> curl)
+const rb = S.rainbow, [r0x, r0y] = P(rb[0], rb[1]), [r1x, r1y] = P(rb[2], rb[3]), [r2x, r2y] = P(rb[4], rb[5]), f1 = v => v.toFixed(1);
+points(LOW ? 40 : 60, () => [0, 0],
+  `float t = fract(uT * .16 + aS.w); float u = 1. - t;
+   p.xy = u * u * vec2(${f1(r0x)}, ${f1(r0y)}) + 2. * u * t * vec2(${f1(r1x)}, ${f1(r1y)}) + t * t * vec2(${f1(r2x)}, ${f1(r2y)}) + (aS.xy - .5) * 22. + vec2(0., sin(uT * 2. + aS.z * 6.) * 4.);
+   a = smoothstep(0., .15, t) * smoothstep(1., .8, t) * pow(.5 + .5 * sin(uT * (5. + aS.z * 6.) + aS.y * 30.), 3.); sz = 5. + aS.z * 8.;`,
+  { color: [1, .95, .8], day: .7 });
+// rocket: flickering exhaust, a fiery glow on the launch pad (night), smoke puffing out of the pad
+const [rx, ry] = P(S.rocket[0], S.rocket[1]), [px_, py_] = P(S.pad[0], S.pad[1]);
+points(2, () => [px_, py_ - 2], `a = (.2 + .05 * sin(uT * 9. + aS.x * 9.) + .03 * sin(uT * 23.)) * (1. - aS.w * .5); sz = 70. + aS.w * 40.;`, { color: [1, .5, .15], day: 1, order: 2 });
+points(LOW ? 26 : 40, () => [px_, py_],
+  `float life = fract(uT * (.18 + aS.x * .1) + aS.y); float side = aS.z < .5 ? -1. : 1.; p.x += side * (20. + life * (60. + aS.x * 40.)); p.y += life * (18. + aS.z * 26.) - 6.;
+   a = sin(life * 3.1416) * .18; sz = 14. + life * 30.;`, { color: [.92, .94, 1], tex: puff, add: false, order: 3 });
+points(8, () => [rx, ry],
+  `p.y -= aS.w * 16.; p.x += (aS.x - .5) * 5.; a = (1. - aS.w) * (.25 + .15 * sin(uT * 30. + aS.y * 50.)); sz = 18. - aS.w * 9. + sin(uT * 25. + aS.z * 9.) * 3.;`, { color: [1, .6, .25], order: 4, day: 1 });
+// campfire: flickering glow and embers drifting up
+const [kx, ky] = P(S.campfire[0], S.campfire[1]);
+points(1, () => [kx, ky + 3], `a = .16 + .06 * sin(uT * 11. + aS.x * 7.) + .04 * sin(uT * 27. + aS.y * 5.); sz = 38.;`, { color: [1, .55, .2], day: 1, order: 2 });
+points(10, () => [kx, ky],
+  `float life = fract(uT * (.35 + aS.x * .3) + aS.y); p.y += life * (30. + aS.z * 20.); p.x += sin(life * 6. + aS.z * 9.) * 4. + (aS.x - .5) * 10. * life; a = (1. - life) * (.35 + .25 * sin(uT * 20. + aS.y * 30.)); sz = 2.5 + aS.z * 3.;`,
+  { color: [1, .65, .25], day: 1, order: 3 });
+// ferris wheel: a chase of lights running round the rim (night)
+const [wx, wy] = P(S.wheel[0], S.wheel[1]), wr = S.wheel[2] / K;
+points(24, () => [wx, wy], `float ang = aS.w * 6.2832 - uT * .35; p.xy += vec2(cos(ang), sin(ang)) * ${wr.toFixed(1)}; a = .55 + .45 * sin(uT * 4. - aS.w * 12.566); sz = 9.;`, { color: [1, .6, .95], day: 0 });
+// stage: sweeping spotlight beams (night)
+const beamMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, uniforms: { uT: U.uT, uN: U.uN },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+  fragmentShader: `uniform float uT, uN; varying vec2 vUv; void main(){ float x = abs(vUv.x - .5) * 2.; float w = mix(.12, 1., vUv.y); float b = smoothstep(w, w * .3, x) * (1. - vUv.y) * smoothstep(0., .08, vUv.y);
+    gl_FragColor = vec4(vec3(.3, .8, 1.) * b * 1.15 * uN, 1.); }` });
+const [sx, sy] = P(S.stage[0], S.stage[1]), beams = [];
+[[-24, -5, .5, .53], [-8, 5, 2.1, .36], [27, 3, 3.7, -.65]].forEach(([dx, dy, ph, tilt]) => { const g = new THREE.PlaneGeometry(36, 66); g.translate(0, 33, 0); const m = new THREE.Mesh(g, beamMat); m.position.set(sx + dx, sy + dy, 0); m.renderOrder = 5; m.userData = { ph, tilt }; fx.add(m); beams.push(m); });
+// plasma globe: lightning branching out of the ball, flashes of glow
+const [cx, cy] = P(S.coil[0], S.coil[1]);
+const NA = 6, NS = 9, arcGeo = new THREE.BufferGeometry(), arcPos = new Float32Array(NA * NS * 2 * 3);
+arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPos, 3));
+const arcMat = new THREE.LineBasicMaterial({ color: 0xaef0ff, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthTest: false });
+const arcs = new THREE.LineSegments(arcGeo, arcMat); arcs.renderOrder = 6; fx.add(arcs);
+function zap(){ let k = 0; for (let a = 0; a < NA; a++) { const ang = rnd(-.6, Math.PI + .6), len = rnd(45, 105); let x = cx, y = cy;
+    for (let s = 0; s < NS; s++) { const t = (s + 1) / NS, nx = cx + Math.cos(ang) * len * t + rnd(-5, 5), ny = cy + Math.sin(ang) * len * t * .8 + rnd(-5, 5); arcPos.set([x, y, 0, nx, ny, 0], k); k += 6; x = nx; y = ny; } }
+  arcGeo.attributes.position.needsUpdate = true; }
+// a few soft cyan points, not ten: stacked additively they clipped to white over the pale rock left of the ball and pulled the glow off centre
+points(4, () => [cx, cy], `a = .3 + .25 * sin(uT * 18. + aS.x * 20.); sz = 26. + aS.y * 22.;`, { color: [.3, .8, 1], day: .3 });
+
+// ---------- picture edges for windows that aren't 16:10: a blurred copy stretched outwards and darkened with distance ----------
+function bgMesh(u, vigDay, vigNight){
+  const m = new THREE.ShaderMaterial({ transparent: true, depthTest: false, depthWrite: false,
+    uniforms: Object.assign({ uS: { value: new THREE.Vector2(W, H) }, uVig: { value: new THREE.Vector2(vigDay, vigNight) }, uOut: { value: new THREE.Vector2() } }, u),
+    vertexShader: `varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `uniform sampler2D uAb, uBb; uniform float uN, uAlpha, uGrade; uniform vec2 uS, uVig, uOut; varying vec2 vP;
+      void main(){ vec2 uv = vP / uS + .5, q = clamp(uv, 0., 1.);
+        // inside the picture only a band along the open sides (uOut) is drawn: there the picture fades into the blur, so the
+        // night effects (aurora, stars) don't stop at a hard line
+        vec2 e2 = min(uv, 1. - uv) / vec2(uS.y / uS.x, 1.); float e = min(mix(9., e2.x, uOut.x), mix(9., e2.y, uOut.y));
+        if (e > .1) discard;
+        float d = length((uv - q) * vec2(uS.x / uS.y, 1.));
+        float k = clamp((uN - (1. - q.y) * .35) / .65, 0., 1.); k = k * k * (3. - 2. * k);              // same day->night wipe as the map
+        // the blurred copy is averaged along the edge as well (wider further out): stretched single pixels would draw streaks
+        vec2 tg = (uv.y != q.y || e2.y < e2.x) ? vec2(1., 0.) : vec2(0., 1.); float sp = .03 + d * .25;
+        vec3 soft = vec3(0.);
+        for (int i = -3; i <= 3; i++) { vec2 t = clamp(q + tg * float(i) * sp / 3., .01, .99); soft += mix(texture2D(uAb, t).rgb, texture2D(uBb, t).rgb, k); }
+        soft /= 7.;
+        vec3 c = soft; float al = e > 0. ? smoothstep(.1, .0, e) : 1.;
+        c = mix(c, mix(c, c * c * 1.25, .18) + vec3(.0, .012, .03) * (1. - c), k * uGrade);           // the night grade of the map
+        vec2 v = q - .5; c *= 1. - dot(v, v) * mix(uVig.x, uVig.y, k);
+        c *= mix(1., .55, smoothstep(0., .45, d));
+        gl_FragColor = vec4(c, uAlpha * al);
+        #include <colorspace_fragment>
+      }` });
+  const o = new THREE.Mesh(new THREE.PlaneGeometry(W * 6, H * 6), m); o.position.set(W / 2, H / 2, 0); o.renderOrder = 10; o.visible = false; return o;
+}
+const bg = bgMesh({ uAb: { value: tex(A.dayBlur) }, uBb: { value: tex(A.nightBlur) }, uN: U.uN, uAlpha: { value: 1 }, uGrade: { value: 1 } }, .25, .55); scene.add(bg);
+
+// ---------- view: the whole picture is on screen; zoom/centre only move during a transition ----------
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => { t = clamp(t, 0, 1); return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const V = { zoom: 1, cx: W / 2, cy: H / 2 };                                       // view centre in image px (y down)
+// contain: the whole picture is always on screen. A window that isn't 16:10 (a PC browser) shows blurred, stretched picture
+// edges around it (bgMesh); on the 16:10 tablet nothing changes and the edge meshes are not drawn at all
+const keep = (v, h, size) => 2 * h >= size ? size / 2 : clamp(v, h, size - h);
+function fit(){ R.setSize(innerWidth, innerHeight, false); const a = innerWidth / innerHeight, s = Math.max(W / a, H) / V.zoom;   // world height visible
+  const hh = s / 2, hw = hh * a, cxv = keep(V.cx, hw, W), cyv = H - keep(V.cy, hh, H);
+  cam.left = cxv - hw; cam.right = cxv + hw; cam.top = cyv + hh; cam.bottom = cyv - hh; cam.updateProjectionMatrix(); pxScale.value = R.getPixelRatio() * innerHeight / s * K;
+  const s0 = Math.max(W / a, H), h0 = s0 / 2, w0 = h0 * a; dcam.left = W / 2 - w0; dcam.right = W / 2 + w0; dcam.top = H / 2 + h0; dcam.bottom = H / 2 - h0; dcam.updateProjectionMatrix(); zfxPx.value = R.getPixelRatio() * innerHeight / s0 * K;
+  const side = (o, c) => { const x = c.right - c.left > W + 1, y = c.top - c.bottom > H + 1; o.material.uniforms.uOut.value.set(+x, +y); o.visible = x || y; };
+  side(bg, cam); side(dBg, dcam); }
+
+// ---------- weather: day <-> night ----------
+const wxBtn = document.getElementById('wx');
+let night = false, wxTr = null;
+function setWeather(n){ if (n === night && !wxTr) return; night = n; wxTr = { from: U.uN.value, to: n ? 1 : 0, t: 0, dur: 1.8 };
+  wxBtn.className = n ? 'night' : 'day'; document.getElementById('back').classList.toggle('night', !!n); document.getElementById('exit').classList.toggle('night', !!n); document.getElementById('ztitle').classList.toggle('night', !!n); wxBtn.querySelector('.ic').textContent = n ? '🌙' : '☀️'; wxBtn.querySelector('.tx').textContent = n ? '밤' : '낮'; }
+wxBtn.addEventListener('pointerup', e => e.stopPropagation());
+wxBtn.addEventListener('click', e => { e.stopPropagation(); if (mode === 'map' || mode === 'zone') setWeather(!night); });
+
+// ---------- island detail screens: a separate scene; the map zooms into the island, then the detail takes over ----------
+const dscene = new THREE.Scene(), dcam = new THREE.OrthographicCamera(0, W, H, 0, -10, 10);
+const dMat = new THREE.ShaderMaterial({ transparent: true, depthTest: false, depthWrite: false,
+  uniforms: { uMap: { value: null }, uA: { value: 0 }, uT: U.uT, uN: U.uN, uNoise: { value: noiseTex }, uFall: { value: new THREE.Vector4() }, uFoot: { value: new THREE.Vector2() }, uFx: { value: 0 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+  // MW: 상세 화면도 지도처럼 살아 움직이게. 판정은 감마 근사(sqrt)한 색으로, px 는 지도 효과와 같은 1376 기준 좌표(y 아래로)
+  fragmentShader: `uniform sampler2D uMap; uniform float uA, uT, uN, uFx; uniform vec4 uFall; uniform vec2 uFoot; varying vec2 vUv; ${NOISE_TEX}
+    void main(){
+      vec2 uv = vUv, px = vec2(uv.x, 1. - uv.y) * vec2(${(W / K).toFixed(1)}, ${(H / K).toFixed(1)});
+      vec3 c = texture2D(uMap, uv).rgb, q = sqrt(max(c, 0.));
+      vec3 c0 = c; if (uFx > .001) {
+      float lum = dot(q, vec3(.299, .587, .114)), mx = max(q.r, max(q.g, q.b)), sat = mx - min(q.r, min(q.g, q.b));
+      // 폭포: 그려진 물이 아래로 흐르고(두 위상 교차) 물줄기 결과 거품
+      if (uFall.z > 0.) {
+        float inR = smoothstep(uFall.x - 6., uFall.x + 10., px.x) * smoothstep(uFall.z + 6., uFall.z - 10., px.x) * smoothstep(uFall.y - 8., uFall.y + 8., px.y) * smoothstep(uFall.w + 8., uFall.w - 8., px.y);
+        float water = inR * smoothstep(.45, .7, lum) * smoothstep(-.02, .08, q.b - q.r);
+        if (water > .01) {
+          float ph0 = fract(uT * .55), ph1 = fract(uT * .55 + .5), wv = abs(ph0 - .5) * 2.; vec2 o = vec2(sin(px.y * .05 + uT * 2.) * .0006, 0.);
+          vec3 fl = mix(texture2D(uMap, uv + o + vec2(0., ph0 * .0077)).rgb, texture2D(uMap, uv + o + vec2(0., ph1 * .0077)).rgb, wv);
+          float streak = smoothstep(.55, .95, n(vec2(px.x * .22, px.y * .018 - uT * 3.2))) * .55 + smoothstep(.7, 1., n(vec2(px.x * .5, px.y * .04 - uT * 4.5))) * .45;
+          float onFall = smoothstep(uFoot.y + 20., uFoot.y - 20., px.y), churn = smoothstep(.55, .9, fbm(px * .06 + vec2(uT * .6, -uT * .9))) * (1. - onFall);
+          fl += vec3(.85, .97, 1.) * (streak * .42 * onFall + churn * .35);
+          c = mix(c, fl, water * .85);
+        }
+      }
+      // 물(호수·섬 둘레의 빛나는 물): 윤슬 반짝임과 일렁이는 빛
+      float aqua = smoothstep(.05, .2, q.b - q.r) * smoothstep(0., .1, q.g - q.r) * smoothstep(.4, .65, lum);
+      vec2 cell = floor(px / 6.); float gl = step(.975, h(cell)) * smoothstep(1.6, .2, length(fract(px / 6.) * 6. - 3.)) * max(0., sin(uT * (2.5 + h(cell + 7.) * 4.) + h(cell) * 40.));
+      float sh = smoothstep(.6, .92, fbm(px * vec2(.02, .055) + vec2(uT * .1, uT * .04)));
+      c += (vec3(1., 1., .95) * gl * .55 + vec3(.6, .95, 1.) * sh * mix(.06, .14, uN)) * aqua;
+      // 배경 밤하늘(진한 남색): 별 반짝임 (밤에 더 많이)
+      float bg = smoothstep(.24, .14, lum) * smoothstep(0., .06, q.b - q.r);
+      vec2 sc = floor(px / 9.); float st = step(.992, h(sc)) * smoothstep(2.2, .3, length(fract(px / 9.) * 9. - 4.5)) * (.5 + .5 * sin(uT * (1.5 + h(sc + 3.) * 3.) + h(sc) * 50.));
+      c += vec3(.75, .88, 1.) * st * bg * mix(.25, .8, uN);
+      // 광원(창문·전구·네온·불): 숨 쉬듯 밝아졌다 어두워짐, 위치마다 위상이 달라 동시에 깜빡이지 않음
+      float emis = smoothstep(.7, .95, mx) * smoothstep(.3, .6, sat) * (1. - aqua * .7);
+      float pulse = .62 + .38 * sin(uT * 2.4 + px.x * .021 + px.y * .013) * (.6 + .4 * n(vec2(px.x * .05, uT * 1.3)));
+      // 밤: 전체를 푸르고 어둡게 낮추되 광원은 남기고 더 밝게
+      vec3 nc = c * vec3(.7, .78, 1.); nc = mix(nc, nc * nc * 1.25, .2);
+      c = mix(c, nc, uN * (1. - emis * .85));
+      c += c * emis * ((pulse - .5) * mix(.35, .6, uN) + uN * .3);
+      }
+      c = mix(c0, c, uFx);
+      vec2 v = uv - .5; c *= 1. - dot(v, v) * mix(.5, .6, uN * uFx); gl_FragColor = vec4(c, uA);
+      #include <colorspace_fragment>
+    }` });
+const dMesh = new THREE.Mesh(new THREE.PlaneGeometry(W, H), dMat); dMesh.position.set(W / 2, H / 2, 0); dscene.add(dMesh);
+const dBlur = { value: null }, dBg = bgMesh({ uAb: dBlur, uBb: dBlur, uN: { value: 0 }, uAlpha: dMat.uniforms.uA, uGrade: { value: 0 } }, .5, .5); dscene.add(dBg);
+const ZONES = A.zones || {}, dTex = {};
+const dTexB = {}; Object.keys(ZONES).forEach(k => { dTex[k] = tex(ZONES[k].img); dTexB[k] = tex(ZONES[k].blur); });                    // decoded up front: no hitch on the first tap
+
+// ---------- MW 영역 안 상시 효과: 지도와 같은 효과를 각 영역 그림 위 해당 위치에 (좌표는 상세 그림 원본 px). 낮/밤은 지도와 같은 uN ----------
+const ZFX = {
+  learn: { fall: [985, 1085, 1465, 1505], foot: [1235, 1480], campfire: [1572, 880], forest: [560, 230, 2000, 880] },
+  play: { wheel: [1624, 300, 150], rocket: [1490, 640], pad: [1490, 772], stage: [1285, 1140] },
+  ar: { rainbow: [1665, 1030, 1450, 1180, 1305, 985], coil: [1090, 900], sparkle: [720, 380, 1860, 1250],
+        stars: [[880, 230], [940, 262], [1000, 250], [1032, 212], [925, 318], [1100, 128], [1152, 172], [1138, 204], [1098, 250]] } };
+const zA = { value: 0 }; let zFxV = 0;
+const zfx = new THREE.Group(), zfxZ = {}, zfxPx = { value: 1 }, ZM = 1.7, zf = v => (v * ZM).toFixed(1); dscene.add(zfx);   // ZM: 상세 그림이 지도보다 크게 그려진 비율
+Object.keys(ZFX).forEach(k => { zfxZ[k] = new THREE.Group(); zfxZ[k].visible = false; zfx.add(zfxZ[k]); });
+function dpoints(z, n, seed, motion, opts){
+  const pos = new Float32Array(n * 3), sd = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) { const q = seed(i); pos.set([q[0], q[1], 0], i * 3); sd.set([Math.random(), Math.random(), Math.random(), i / n], i * 4); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aS', new THREE.BufferAttribute(sd, 4));
+  const day = (opts.day === undefined ? 1 : opts.day).toFixed(2);
+  const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: opts.add === false ? THREE.NormalBlending : THREE.AdditiveBlending,
+    uniforms: { uT: U.uT, uN: U.uN, uA: zA, uTex: { value: opts.tex || dot }, uPx: zfxPx, uC: { value: new THREE.Color(...opts.color) } },
+    vertexShader: `uniform float uT, uN, uA, uPx; attribute vec4 aS; varying float vA;
+      void main(){ vec3 p = position; float a = 1., sz = 1.; ${motion}
+        a *= mix(${day}, 1., uN) * uA; vA = a; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.); gl_PointSize = a > .001 ? sz * ${ZM.toFixed(2)} * uPx : 0.; }`,
+    fragmentShader: `uniform sampler2D uTex; uniform vec3 uC; varying float vA; void main(){ vec4 t = texture2D(uTex, gl_PointCoord); gl_FragColor = ${opts.add === false ? 'vec4(uC, t.a * vA)' : 'vec4(uC, 1.) * t * vA'}; }` });
+  const o = new THREE.Points(g, m); o.renderOrder = opts.order || 1; zfxZ[z].add(o); return o; }
+const FIREFLY = `p.xy += vec2(sin(uT * (.3 + aS.x * .4) + aS.y * 6.28), cos(uT * (.25 + aS.z * .3) + aS.x * 6.28)) * ${zf(14)}; a = pow(.5 + .5 * sin(uT * (1.5 + aS.z * 2.) + aS.y * 9.), 2.); sz = 9. + aS.x * 8.;`;
+// 학습: 숲 반딧불(밤), 폭포 물안개·튀는 물방울, 캠프파이어 불빛·불티
+{ const c = ZFX.learn, [a0, b0, a1, b1] = c.forest, [mx2, my2] = P(...c.foot), [kx2, ky2] = P(...c.campfire);
+  dpoints('learn', LOW ? 60 : 90, () => P(rnd(a0, a1), rnd(b0, b1)), FIREFLY, { color: [1, .9, .45], day: 0 });
+  dpoints('learn', LOW ? 40 : 60, () => [mx2 + rnd(-120, 120), my2 + rnd(-25, 10)],
+    `float life = fract(uT * (.12 + aS.x * .08) + aS.y); p.y += life * (${zf(50)} + aS.z * ${zf(50)}); p.x += sin(life * 3. + aS.z * 6.) * ${zf(18)} * life + (aS.x - .5) * ${zf(60)} * life;
+     a = sin(life * 3.1416) * .32; sz = 40. + life * 90.;`, { color: [.85, .97, 1], tex: puff, add: false, order: 2 });
+  dpoints('learn', LOW ? 30 : 50, () => [mx2 + rnd(-110, 110), my2 + rnd(-10, 15)],
+    `float life = fract(uT * (.5 + aS.x * .5) + aS.y); p.x += (aS.z - .5) * ${zf(80)} * life; p.y += sin(life * 3.1416) * (${zf(25)} + aS.x * ${zf(30)}); a = (1. - life) * .9; sz = 4. + aS.z * 4.;`,
+    { color: [.8, 1, 1] });
+  dpoints('learn', 1, () => [kx2, ky2 + 3], `a = .16 + .06 * sin(uT * 11. + aS.x * 7.) + .04 * sin(uT * 27. + aS.y * 5.); sz = 38.;`, { color: [1, .55, .2], day: 1, order: 2 });
+  dpoints('learn', 10, () => [kx2, ky2],
+    `float life = fract(uT * (.35 + aS.x * .3) + aS.y); p.y += life * (${zf(30)} + aS.z * ${zf(20)}); p.x += sin(life * 6. + aS.z * 9.) * ${zf(4)} + (aS.x - .5) * ${zf(10)} * life; a = (1. - life) * (.35 + .25 * sin(uT * 20. + aS.y * 30.)); sz = 2.5 + aS.z * 3.;`,
+    { color: [1, .65, .25], day: 1, order: 3 }); }
+// 놀이·퀴즈: 관람차 전구(밤에 더 밝게), 로켓 분사 불꽃·발사대 불빛·연기, 무대 조명(밤)
+const zBeams = [];
+{ const c = ZFX.play, [wx2, wy2] = P(c.wheel[0], c.wheel[1]), wr2 = c.wheel[2] / K, [rx2, ry2] = P(...c.rocket), [px2, py2] = P(...c.pad), [sx2, sy2] = P(...c.stage);
+  dpoints('play', 24, () => [wx2, wy2], `float ang = aS.w * 6.2832 - uT * .35; p.xy += vec2(cos(ang), sin(ang)) * ${wr2.toFixed(1)}; a = .55 + .45 * sin(uT * 4. - aS.w * 12.566); sz = 9.;`, { color: [1, .6, .95], day: .25 });
+  dpoints('play', 2, () => [px2, py2 - 2], `a = (.2 + .05 * sin(uT * 9. + aS.x * 9.) + .03 * sin(uT * 23.)) * (1. - aS.w * .5); sz = 70. + aS.w * 40.;`, { color: [1, .5, .15], day: 1, order: 2 });
+  dpoints('play', LOW ? 26 : 40, () => [px2, py2],
+    `float life = fract(uT * (.18 + aS.x * .1) + aS.y); float side = aS.z < .5 ? -1. : 1.; p.x += side * (${zf(20)} + life * (${zf(60)} + aS.x * ${zf(40)})); p.y += life * (${zf(18)} + aS.z * ${zf(26)}) - ${zf(6)};
+     a = sin(life * 3.1416) * .18; sz = 14. + life * 30.;`, { color: [.92, .94, 1], tex: puff, add: false, order: 3 });
+  dpoints('play', 8, () => [rx2, ry2],
+    `p.y -= aS.w * ${zf(16)}; p.x += (aS.x - .5) * ${zf(5)}; a = (1. - aS.w) * (.25 + .15 * sin(uT * 30. + aS.y * 50.)); sz = 18. - aS.w * 9. + sin(uT * 25. + aS.z * 9.) * 3.;`, { color: [1, .6, .25], order: 4, day: 1 });
+  const zBeamMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, uniforms: { uT: U.uT, uN: U.uN, uA: zA },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`,
+    fragmentShader: `uniform float uT, uN, uA; varying vec2 vUv; void main(){ float x = abs(vUv.x - .5) * 2.; float w = mix(.12, 1., vUv.y); float b = smoothstep(w, w * .3, x) * (1. - vUv.y) * smoothstep(0., .08, vUv.y);
+      gl_FragColor = vec4(vec3(.3, .8, 1.) * b * 1.15 * uN * uA, 1.); }` });
+  [[-24, -5, .5, .53], [-8, 5, 2.1, .36], [27, 3, 3.7, -.65]].forEach(([dx, dy, ph, tilt]) => { const g = new THREE.PlaneGeometry(36 * ZM, 66 * ZM); g.translate(0, 33 * ZM, 0);
+    const m = new THREE.Mesh(g, zBeamMat); m.position.set(sx2 + dx * ZM, sy2 + dy * ZM, 0); m.renderOrder = 5; m.userData = { ph, tilt }; zfxZ.play.add(m); zBeams.push(m); }); }
+// AR 존: 무지개 리본을 따라 흐르는 반짝이, 플라즈마 볼 전기·빛, 별자리 별, 섬 위 금빛 반짝이(밤)
+const ZNA = 6, ZNS = 9, zArcGeo = new THREE.BufferGeometry(), zArcPos = new Float32Array(ZNA * ZNS * 2 * 3);
+zArcGeo.setAttribute('position', new THREE.BufferAttribute(zArcPos, 3));
+const zArcMat = new THREE.LineBasicMaterial({ color: 0xaef0ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthTest: false });
+const [zcx, zcy] = P(...ZFX.ar.coil);
+{ const c = ZFX.ar, rb2 = c.rainbow, [q0x, q0y] = P(rb2[0], rb2[1]), [q1x, q1y] = P(rb2[2], rb2[3]), [q2x, q2y] = P(rb2[4], rb2[5]), [g0, h0, g1, h1] = c.sparkle;
+  dpoints('ar', LOW ? 40 : 60, () => [0, 0],
+    `float t = fract(uT * .16 + aS.w); float u = 1. - t;
+     p.xy = u * u * vec2(${f1(q0x)}, ${f1(q0y)}) + 2. * u * t * vec2(${f1(q1x)}, ${f1(q1y)}) + t * t * vec2(${f1(q2x)}, ${f1(q2y)}) + (aS.xy - .5) * ${zf(22)} + vec2(0., sin(uT * 2. + aS.z * 6.) * ${zf(4)});
+     a = smoothstep(0., .15, t) * smoothstep(1., .8, t) * pow(.5 + .5 * sin(uT * (5. + aS.z * 6.) + aS.y * 30.), 3.); sz = 5. + aS.z * 8.;`, { color: [1, .95, .8], day: .7 });
+  dpoints('ar', 4, () => [zcx, zcy], `a = .3 + .25 * sin(uT * 18. + aS.x * 20.); sz = 26. + aS.y * 22.;`, { color: [.3, .8, 1], day: .3 });
+  dpoints('ar', LOW ? 24 : 36, () => P(rnd(g0, g1), rnd(h0, h1)), FIREFLY.replace('* 14', '* 18'), { color: [1, .85, .4], day: 0 });
+  dpoints('ar', c.stars.length, i => P(...c.stars[i]), `a = .35 + .65 * pow(.5 + .5 * sin(uT * (1.2 + aS.x * 1.5) + aS.y * 20.), 3.); sz = 10. + aS.z * 6.;`, { color: [.75, .95, 1], day: .45, order: 2 });
+  const arcs2 = new THREE.LineSegments(zArcGeo, zArcMat); arcs2.renderOrder = 6; zfxZ.ar.add(arcs2); }
+function zzap(){ let k = 0; for (let a = 0; a < ZNA; a++) { const ang = rnd(-.6, Math.PI + .6), len = rnd(45, 105) * ZM; let x = zcx, y = zcy;
+    for (let q = 0; q < ZNS; q++) { const t = (q + 1) / ZNS, nx = zcx + Math.cos(ang) * len * t + rnd(-5, 5) * ZM, ny = zcy + Math.sin(ang) * len * t * .8 + rnd(-5, 5) * ZM; zArcPos.set([x, y, 0, nx, ny, 0], k); k += 6; x = nx; y = ny; } }
+  zArcGeo.attributes.position.needsUpdate = true; }
+let zZapT = 0;
+function zfxShow(k){ Object.keys(zfxZ).forEach(q => zfxZ[q].visible = q === k); const c = ZFX[k] || {};
+  if (c.fall) { dMat.uniforms.uFall.value.set(c.fall[0] / K, c.fall[1] / K, c.fall[2] / K, c.fall[3] / K); dMat.uniforms.uFoot.value.set(c.foot[0] / K, c.foot[1] / K); }
+  else dMat.uniforms.uFall.value.set(0, 0, 0, 0); }
+function zfxTick(dt){ if (mode === 'map') { zFxV = 0; return; }
+  zFxV = mode === 'zone' ? Math.min(1, zFxV + dt / .5) : Math.max(0, zFxV - dt / .15);
+  dMat.uniforms.uFx.value = zFxV; zA.value = dMat.uniforms.uA.value * zFxV; zfx.visible = zFxV > .001; if (!zfx.visible) return; const sc = dMesh.scale.x; zfx.scale.set(K * sc, K * sc, 1); zfx.position.set(W / 2 * (1 - sc), H / 2 * (1 - sc), 0);
+  zBeams.forEach(b => b.rotation.z = b.userData.tilt + Math.sin(T * .8 + b.userData.ph) * .12);
+  if (zone === 'ar' && T - zZapT > .07) { zZapT = T; zzap(); zArcMat.opacity = (Math.random() < .2 ? 0 : .5 + Math.random() * .5) * lerp(.35, 1, U.uN.value) * zA.value; } }
+const inPoly = (pts, x, y) => { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+const centre = pts => { let x = 0, y = 0; pts.forEach(p => { x += p[0]; y += p[1]; }); return [x / pts.length, y / pts.length]; };
+let mode = 'map', zone = null, tr = null;                                          // tr: running transition
+const ui = (id, on) => document.getElementById(id).classList.toggle('hide', !on);
+
+function openZone(k){ if (mode !== 'map') return; mode = 'in'; zone = k; ui('exit', 0); setCastZone(k); const [zx, zy] = centre(ZONES[k].poly); dMat.uniforms.uMap.value = dTex[k]; dBlur.value = dTexB[k]; zfxShow(k);
+  tr = { t: 0, dur: 1.1, fn: t => { const e = ease(t / .85); V.zoom = lerp(1, 2.4, e); V.cx = lerp(W / 2, zx, e); V.cy = lerp(H / 2, zy, e);
+      const f = ease((t - .45) / .55); dMat.uniforms.uA.value = f; dMesh.scale.setScalar(lerp(1.18, 1, f)); castE = ease((t - .6) / .5); },
+    done: () => { mode = 'zone'; document.getElementById('ztitle').textContent = ZONES[k].name; ui('ztitle', 1); ui('back', 1); ui('s3d', k === 'learn'); } }; }
+function closeZone(){ if (mode !== 'zone') return; mode = 'out'; ui('ztitle', 0); ui('back', 0); ui('s3d', 0); const z0 = V.zoom, x0 = V.cx, y0 = V.cy;
+  tr = { t: 0, dur: 1., fn: t => { const f = 1 - ease(t / .5); dMat.uniforms.uA.value = f; dMesh.scale.setScalar(lerp(1.12, 1, f)); castE = 1 - ease(t / .35);
+      const e = ease((t - .2) / .8); V.zoom = lerp(z0, 1, e); V.cx = lerp(x0, W / 2, e); V.cy = lerp(y0, H / 2, e); },
+    done: () => { mode = 'map'; zone = null; castE = 0; ui('wx', 1); ui('exit', 1); } }; }
+document.getElementById('back').addEventListener('click', closeZone);
+document.getElementById('s3d').addEventListener('click', () => { location.href = 'island3d/index.html?from=map'; });   // 임시: 가운데 섬 3D 샘플 진입
+let down = null;
+addEventListener('pointerdown', e => down = { x: e.clientX, y: e.clientY });
+addEventListener('pointerup', e => { if (!down || mode !== 'map') return; const tap = Math.hypot(e.clientX - down.x, e.clientY - down.y) < 14; down = null; if (!tap) return;
+  const x = cam.left + e.clientX / innerWidth * (cam.right - cam.left), y = H - (cam.top - e.clientY / innerHeight * (cam.top - cam.bottom));   // screen -> image px
+  const k = Object.keys(ZONES).find(q => inPoly(ZONES[q].poly, x, y)); if (k) openZone(k); });
+addEventListener('resize', fit);
+['touchmove', 'wheel'].forEach(t => addEventListener(t, e => e.preventDefault(), { passive: false }));
+
+let last = performance.now(), capT = 0, fpsN = 0, fpsT = last, T = 0, zapT = 0;
+function loop(now){
+  requestAnimationFrame(loop);
+  if (capT && now - capT < 1000 / 60 - 1.5) return; capT = Math.max((capT || now) + 1000 / 60, now - 1000 / 60);
+  const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt; U.uT.value = T;
+  if (wxTr) { wxTr.t += dt; const e = ease(wxTr.t / wxTr.dur); U.uN.value = lerp(wxTr.from, wxTr.to, e); if (wxTr.t >= wxTr.dur) wxTr = null; }
+  beams.forEach(b => b.rotation.z = b.userData.tilt + Math.sin(T * .8 + b.userData.ph) * .12);
+  if (T - zapT > .07) { zapT = T; zap(); arcMat.opacity = (Math.random() < .2 ? 0 : .5 + Math.random() * .5) * lerp(.35, 1, U.uN.value); }
+  if (tr) { tr.t += dt; tr.fn(Math.min(tr.t, tr.dur)); fit(); if (tr.t >= tr.dur) { const d = tr.done; tr = null; d(); } }
+  // the map is only drawn while it can be seen (on the detail screen the GPU only draws one picture)
+  if (mode === 'zone') castE = 1; animCast(); zfxTick(dt);
+  R.autoClear = true; if (mode !== 'zone') R.render(scene, cam);
+  if (mode !== 'map') { R.autoClear = mode === 'zone'; R.render(dscene, dcam); }
+  fpsN++; if (now - fpsT > 500) { document.getElementById('hud').textContent = Math.round(fpsN * 1000 / (now - fpsT)) + ' FPS · x' + R.getPixelRatio() + ' · DC ' + R.info.render.calls; fpsN = 0; fpsT = now; }
+}
+fit(); requestAnimationFrame(loop);
+// ---------- detail-screen hosts: Winni (left) and Pero (right) slide in and introduce the island ----------
+const CAST = A.cast, castEl = document.getElementById('cast'), ch = {};
+// per island: Pero's top (fraction of the frame height) - kept clear of the island's right edge
+const PERO_TOP = { learn: .5, ar: .5, play: .5 };
+if (CAST) {
+  for (const k of ['winni', 'pero']) { const d = document.createElement('div'); d.className = 'ch';
+    d.innerHTML = CAST[k].layers.map(l => `<img src="${l.uri}" style="transform-origin:${l.piv[0] * 100}% ${l.piv[1] * 100}%">`).join(''); castEl.appendChild(d); ch[k] = { el: d, imgs: [...d.children] }; }
+  for (const k of ['b1', 'b2']) { const b = document.createElement('div'); b.className = 'bub ' + (k === 'b1' ? 'l' : 'r'); castEl.appendChild(b); ch[k] = { el: b }; }
+}
+let castE = 0, castZone = null, castT0 = 0;
+function layoutCast(){ if (!CAST) return;
+  // the frame the picture takes on screen (contain fit, same as the camera)
+  const a = innerWidth / innerHeight, fw = a >= W / H ? innerHeight * W / H : innerWidth, fh = fw * H / W, ox = (innerWidth - fw) / 2, oy = (innerHeight - fh) / 2;
+  Object.assign(castEl.style, { left: ox + 'px', top: oy + 'px', width: fw + 'px', height: fh + 'px', fontSize: fh * .026 + 'px' });
+  const wh = fh * .42, ph = fh * .21, w = ch.winni.el.style, p = ch.pero.el.style;
+  Object.assign(w, { height: wh + 'px', width: wh * CAST.winni.w / CAST.winni.h + 'px', left: fw * .02 + 'px', top: fh - wh - fh * .015 + 'px' });
+  const pw = ph * CAST.pero.w / CAST.pero.h, pt = (PERO_TOP[castZone] || .5) * fh;
+  Object.assign(p, { height: ph + 'px', width: pw + 'px', left: fw - pw - fw * .025 + 'px', top: pt + 'px' });
+  // speech comes from beside each face: Winni's bubble to her right, Pero's to his left (tails point at the speaker)
+  const wl = fw * .02, wwd = wh * CAST.winni.w / CAST.winni.h, wt = fh - wh - fh * .015;
+  Object.assign(ch.b1.el.style, { left: wl + wwd * 1.02 + 'px', top: wt + wh * .1 + 'px' });
+  Object.assign(ch.b2.el.style, { right: pw + fw * .04 + 'px', left: 'auto', top: pt + ph * .38 + 'px' }); }
+function setCastZone(k){ if (!CAST) return; castZone = k; castT0 = T; const L = ZONES[k].lines || []; ch.b1.el.textContent = L[0] || ''; ch.b2.el.textContent = L[1] || ''; ch.b1.el.style.display = L[0] ? '' : 'none'; ch.b2.el.style.display = L[1] ? '' : 'none'; layoutCast(); }
+function animCast(){ if (!CAST) return; castEl.style.display = castE > 0 ? '' : 'none'; if (castE <= 0) return;
+  const t = T - castT0, e = castE, back = x => { x = clamp(x, 0, 1); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+  // Winni: slides in from the left, waves, small head tilt, breathing bob
+  const [wb, wa, wh] = ch.winni.imgs;
+  ch.winni.el.style.transform = `translate(${(1 - back(e)) * -130}%, ${Math.sin(t * 2.2) * .6}%)`;
+  const cyc = (t % 3.2) / 1.3, wave = cyc < 1 ? Math.sin(cyc * Math.PI * 4) * Math.sin(cyc * Math.PI) : 0;
+  wa.style.transform = `rotate(${-3.5 + wave * 6}deg)`; wh.style.transform = `rotate(${Math.sin(t * 1.3) * 2}deg)`;
+  // Pero: flies in from the right, floats, both wings flap, blinks every few seconds
+  const [ar, al, pb, pe, pm] = ch.pero.imgs;
+  ch.pero.el.style.transform = `translate(${(1 - back(e)) * 160}%, ${Math.sin(t * 1.7) * 5}%) rotate(${Math.sin(t * 1.1) * 3}deg)`;
+  al.style.transform = `rotate(${Math.sin(t * 5.5) * 16}deg)`; ar.style.transform = `rotate(${Math.sin(t * 1.7 + 1) * 7}deg)`;
+    // blink: eyes squeeze shut quickly and reopen a little slower (now and then twice); the smile widens a touch with it
+  const bc = t % 4.2, one = x => x < 0 ? 0 : x < .07 ? x / .07 : x < .11 ? 1 : x < .24 ? 1 - (x - .11) / .13 : 0;
+  const close = Math.max(one(bc - 3.4), Math.floor(t / 4.2) % 3 === 2 ? one(bc - 3.72) : 0), sm = Math.sin(close * Math.PI / 2);
+  pe.style.transform = `scale(${1 + sm * .06}, ${1 - sm * .9})`; pm.style.transform = `scale(${1 + sm * .14}, ${1 - sm * .1})`;
+  // speech bubbles pop after the hosts arrive
+  const b1 = back((t - .5) / .35) * e, b2 = back((t - .9) / .35) * e;
+  ch.b1.el.style.transform = `translateY(-50%) scale(${b1})`; ch.b2.el.style.transform = `translateY(-50%) scale(${b2})`; ch.b1.el.style.opacity = Math.min(1, b1 * 2); ch.b2.el.style.opacity = Math.min(1, b2 * 2); }
+addEventListener('resize', layoutCast);
+window.WV10 = { openZone, closeZone, setWeather, get mode(){ return mode; }, get night(){ return night; } };
+})();
+</script><script>(function(){var b=document.getElementById('exit');if(!window.MyWittiApp){b.style.display='none';return;}b.addEventListener('click',function(){window.MyWittiApp.close();});})();</script></body></html>

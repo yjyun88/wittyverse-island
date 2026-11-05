@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>가운데 섬 로우폴리</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;
+  background:radial-gradient(ellipse at 50% 38%,#1b3a72 0%,#0c1d44 50%,#050c22 100%);
+  font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;color:#fff}
+canvas{display:block}
+#ui{position:fixed;left:16px;top:14px;display:flex;gap:12px;align-items:center;z-index:2}
+#exit{display:none;border:0;border-radius:22px;padding:10px 18px;font-size:16px;font-weight:700;color:#173064;
+  background:linear-gradient(#fff,#dfe8ff);box-shadow:0 3px 10px #0007}
+#title{font-weight:800;font-size:19px;text-shadow:0 2px 8px #000a}
+__TABS__
+#hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);font-size:14px;opacity:.7;white-space:nowrap;transition:opacity 1s}
+#fps{position:fixed;right:12px;bottom:10px;font:12px monospace;opacity:.55}
+</style>
+</head>
+<body>
+<div id="ui"><button id="exit">← 나가기</button><div id="title">위티버스 가운데 섬</div></div>
+<div id="tabs">__TABLINKS__</div>
+<div id="hint">한 손가락으로 돌리고, 두 손가락으로 확대해 보세요</div>
+<div id="fps"></div>
+<script>__THREE__</script>
+<script>
+(() => {
+const T = THREE, PI = Math.PI, TAU = PI * 2;
+const META = __META__;
+const BIN = Uint8Array.from(atob('__BIN__'), c => c.charCodeAt(0)).buffer;
+
+/* ---------- 기본 설정 ---------- */
+const R = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+R.setPixelRatio(Math.min(devicePixelRatio, __PR__));
+R.setSize(innerWidth, innerHeight);
+R.shadowMap.enabled = true; R.shadowMap.type = T.PCFSoftShadowMap;
+document.body.appendChild(R.domElement);
+const scene = new T.Scene();
+scene.fog = new T.Fog(0x0b1a40, 50, 98);
+const cam = new T.PerspectiveCamera(32, innerWidth / innerHeight, 0.5, 200);
+
+let seed = 20261104;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const uT = { value: 0 }, uS = { value: 1 };
+
+/* ---------- Blender 에서 구운 모델 읽기 ---------- */
+const LUT = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const c = i / 255; LUT[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+function geo(name) {
+  const g = META.groups[name], n = g.n;
+  const q = new Uint16Array(BIN, g.pos, n * 3), c8 = new Uint8Array(BIN, g.col, n * 3);
+  const p = new Float32Array(n * 3), c = new Float32Array(n * 3);
+  for (let i = 0; i < n * 3; i++) { const k = i % 3; p[i] = g.min[k] + q[i] / 65535 * (g.max[k] - g.min[k]); c[i] = LUT[c8[i]]; }
+  const G = new T.BufferGeometry();
+  G.setAttribute('position', new T.BufferAttribute(p, 3)); G.setAttribute('color', new T.BufferAttribute(c, 3));
+  G.computeVertexNormals(); return G;
+}
+const litMat = new T.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+const land = new T.Mesh(geo('lit'), litMat); land.castShadow = land.receiveShadow = true; scene.add(land);
+const trees = new T.Mesh(geo('tree'), litMat); trees.receiveShadow = true; scene.add(trees);   // 나무는 그림자를 드리우지 않음(바닥의 화살표 모양 그림자 제거)
+scene.add(new T.Mesh(geo('emit'), new T.MeshBasicMaterial({ vertexColors: true })));
+const boat = new T.Mesh(geo('boat'), new T.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: T.DoubleSide }));   // 배 안쪽 면도 그림(안 그리면 물이 비쳐 잠겨 보임)
+boat.castShadow = true; scene.add(boat);
+
+/* ---------- 조명 ---------- */
+scene.add(new T.HemisphereLight(0xa8c4ff, 0x2a2244, 2.1));
+const moon = new T.DirectionalLight(0xd2deff, 2.3); moon.position.set(-11, 18, 13);
+moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048);
+Object.assign(moon.shadow.camera, { left: -15, right: 15, top: 15, bottom: -15, near: 1, far: 64 });
+moon.shadow.bias = -0.0006; moon.shadow.normalBias = 0.04; moon.shadow.radius = 3;
+scene.add(moon);
+const C = META.castle, CP = META.camp;
+const castleLight = new T.PointLight(0xffc36e, 9, 13, 1.2); castleLight.position.set(C[0], C[1] + 1.8, C[2] + 2.6); scene.add(castleLight);
+const fireLight = new T.PointLight(0xff8a3a, 11, 9, 1.2); fireLight.position.set(CP[0], CP[1] + 1.0, CP[2]); scene.add(fireLight);
+
+/* ---------- 바다와 빛나는 물결 ---------- */
+const SEA = -7;
+const sea = new T.Mesh(new T.CircleGeometry(34, 96).rotateX(-PI / 2), new T.ShaderMaterial({
+  transparent: true, depthWrite: false, uniforms: { uT },
+  vertexShader: `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+  fragmentShader: `varying vec3 vW; uniform float uT;
+    float br(float a){ float d=atan(sin(a-1.5708),cos(a-1.5708)); return ${(META.isl * 0.66).toFixed(3)}*(1.+.07*sin(3.*a+1.3)+.05*sin(5.*a+2.73)+.025*sin(11.*a+.91))*(1.-.1*exp(-d*d/.3025))*(1.-.14*exp(-pow(atan(sin(a-2.3),cos(a-2.3)),2.)/.16)); }
+    void main(){
+      float d=length(vW.xz), a=atan(vW.z,vW.x), x=d-br(a);
+      float ring=exp(-x*x*1.1)*step(-0.8,x);
+      float w=smoothstep(.55,1.,sin(x*3.6-uT*1.4+sin(a*5.+uT*.3)*1.6))*exp(-max(x,0.)*.32)*step(0.,x);
+      float fade=1.-smoothstep(9.,24.,d);
+      vec3 c=vec3(.03,.09,.24)+vec3(.25,.92,1.)*(ring*1.05+w*.55);
+      gl_FragColor=vec4(c,clamp(fade*.82+ring*.3,0.,1.)*fade);
+    }`
+}));
+sea.position.y = SEA; sea.renderOrder = 1; scene.add(sea);
+
+/* ---------- 점 효과 ---------- */
+function points(pts, color, size, motion, sizeVar = 0.4) {
+  const g = new T.BufferGeometry(), n = pts.length;
+  const ph = new Float32Array(n), sz = new Float32Array(n);
+  for (let i = 0; i < n; i++) { ph[i] = rnd(); sz[i] = size * (1 - sizeVar / 2 + rnd() * sizeVar); }
+  g.setAttribute('position', new T.Float32BufferAttribute(pts.flat(), 3));
+  g.setAttribute('aPh', new T.BufferAttribute(ph, 1));
+  g.setAttribute('aSz', new T.BufferAttribute(sz, 1));
+  const m = new T.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: T.AdditiveBlending,
+    uniforms: { uT, uS, uC: { value: new T.Color(color) } },
+    vertexShader: `attribute float aPh; attribute float aSz; uniform float uT; uniform float uS; varying float vA;
+      void main(){ vec3 p=position; float s=aSz; vA=1.; ${motion}
+        vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv; gl_PointSize=s*uS/-mv.z; }`,
+    fragmentShader: `uniform vec3 uC; varying float vA;
+      void main(){ float d=length(gl_PointCoord-.5); float a=pow(smoothstep(.5,0.,d),1.7)*vA;
+        gl_FragColor=vec4(uC*(1.+.9*smoothstep(.18,0.,d)),a); }`
+  });
+  const p = new T.Points(g, m); p.renderOrder = 3; p.frustumCulled = false; scene.add(p); return p;
+}
+const TWINKLE = `vA=.55+.45*sin(uT*2.4+aPh*6.283);`;
+points(META.bulbs, 0xffc560, 0.55, TWINKLE);
+points(META.oakBulbs, 0xffd27a, 0.34, TWINKLE);
+points(META.domeStars, 0xe9f2ff, 0.2, TWINKLE);
+points(META.lanterns, 0xffd890, 1.2, `vA=.8+.2*sin(uT*3.+aPh*20.);`, 0.1);
+
+/* ---------- 연못·폭포 ---------- */
+// 연못 물: 섬 가장자리 밖으로는 그리지 않음(rim 밖 discard)
+const waterMat = new T.ShaderMaterial({
+  transparent: true, uniforms: { uT },
+  vertexShader: `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+  fragmentShader: `varying vec3 vW; uniform float uT;
+    float rim(float a){ float d=atan(sin(a-1.5708),cos(a-1.5708)), e=atan(sin(a-2.3),cos(a-2.3));
+      return ${META.isl.toFixed(3)}*(1.+.07*sin(3.*a+1.3)+.05*sin(5.*a+2.73)+.025*sin(11.*a+.91))*(1.-.1*exp(-d*d/.3025))*(1.-.14*exp(-e*e/.16)); }
+    void main(){ float rd=rim(atan(vW.z,vW.x))-length(vW.xz); if(rd<.04) discard;
+      float fa=1.; if(vW.z>0.) fa=max(smoothstep(.22,.55,rd),smoothstep(1.25,1.7,abs(vW.x-${META.wfx.toFixed(3)})));
+      float r=sin(vW.x*2.6+uT*1.3)*sin(vW.z*3.1-uT*1.1)+.5*sin((vW.x+vW.z)*5.-uT*2.);
+      vec3 c=mix(vec3(.10,.50,.74),vec3(.36,.88,.98),.5+.28*r); c+=smoothstep(1.15,1.4,r)*.55;
+      gl_FragColor=vec4(c,fa); }`
+});
+const blobR = (a, base, s) => base * (1 + 0.07 * Math.sin(3 * a + s) + 0.05 * Math.sin(5 * a + 2.1 * s) + 0.025 * Math.sin(11 * a + 0.7 * s));
+const WY = -0.06, [PX, PZ, PB, PS] = META.pond, rimZ = META.rimZ, WFX = META.wfx;
+{
+  const sh = new T.Shape(), S = 72;
+  for (let i = 0; i < S; i++) { const a = i / S * TAU, r = blobR(a, PB * 1.25, PS); const x = PX + Math.cos(a) * r, z = PZ + Math.sin(a) * r; i ? sh.lineTo(x, -z) : sh.moveTo(x, -z); }
+  const pond = new T.Mesh(new T.ShapeGeometry(sh, 2).rotateX(-PI / 2), waterMat); pond.position.y = WY; pond.renderOrder = 1; scene.add(pond);
+}
+// 폭포 물줄기: 연못 끝에서 깎인 홈 경사를 타고 내려오다가(앞 8줄) 섬 가장자리에서 떨어짐(나머지)
+const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const notchY = rd => -0.1 - 0.22 * sst(0.6, 0, rd);
+const WN = 40, WS = 5, wfGeo = new T.PlaneGeometry(3.0, 1, 1, WN), wp = wfGeo.attributes.position;
+for (let i = 0; i < wp.count; i++) {
+  const row = Math.round((0.5 - wp.getY(i)) * WN);
+  let y, z;
+  if (row <= WS) { const rd = 0.5 * (1 - row / WS); z = rimZ - rd; y = Math.max(WY + 0.012, notchY(rd) + 0.05); }
+  else { const s = (row - WS) / (WN - WS), y0 = notchY(0) + 0.05; y = y0 + (SEA - 0.2 - y0) * s; z = rimZ + Math.min(1, s * 9) * 0.45 + Math.sin(s * PI) * 0.25 + s * 0.2; }
+  wp.setY(i, y); wp.setZ(i, z);
+}
+wfGeo.computeVertexNormals();
+const waterfall = new T.Mesh(wfGeo, new T.ShaderMaterial({
+  transparent: true, depthWrite: false, side: T.DoubleSide, uniforms: { uT },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `varying vec2 vUv; uniform float uT;
+    float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    float n(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
+      return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
+    void main(){ float v=vUv.y+uT*.75;
+      float s=n(vec2(vUv.x*20.,v*5.))*.6+n(vec2(vUv.x*42.,v*11.))*.4;
+      vec3 c=mix(vec3(.30,.78,.95),vec3(.96,1.,1.),smoothstep(.45,.85,s));
+      c=mix(c,vec3(1.),smoothstep(.25,0.,vUv.y)*.6);
+      float el=.12+.12*n(vec2(2.3,v*3.)), er=.12+.12*n(vec2(7.1,v*3.));
+      float a=smoothstep(0.,el+.06,vUv.x)*smoothstep(1.,1.-er-.06,vUv.x)*smoothstep(.02,.1,vUv.y)*smoothstep(1.,.95,vUv.y)*.9;
+      gl_FragColor=vec4(c,a); }`
+}));
+waterfall.position.set(WFX, 0, 0); waterfall.renderOrder = 2; scene.add(waterfall);
+const foam = []; for (let i = 0; i < 90; i++) foam.push([WFX + (rnd() - 0.5) * 3.1, SEA + 0.1, rimZ + 0.7 + (rnd() - 0.5) * 0.8]);
+points(foam, 0xd8fbff, 1.1, `float t=fract(uT*.55+aPh); p+=vec3(sin(aPh*50.)*t*1.2,t*1.7,cos(aPh*37.)*t*.9+t*.5); vA=(1.-t)*smoothstep(0.,.12,t)*.55; s*=.6+t*1.1;`, 0.6);
+
+/* ---------- 모닥불·바닥 불빛 ---------- */
+const fire = []; for (let i = 0; i < 46; i++) fire.push([CP[0] + (rnd() - 0.5) * 0.35, CP[1] + 0.2, CP[2] + (rnd() - 0.5) * 0.35]);
+points(fire, 0xff7a24, 1.3, `float t=fract(uT*1.1+aPh); p.y+=t*1.25; p.x+=sin(aPh*40.+uT*4.)*.1*t; vA=(1.-t)*smoothstep(0.,.1,t); s*=1.-t*.65;`);
+function glow(x, y, z, r, color, k) {
+  const m = new T.Mesh(new T.CircleGeometry(r, 32).rotateX(-PI / 2), new T.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: T.AdditiveBlending, uniforms: { uC: { value: new T.Color(color) }, uK: { value: k } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+    fragmentShader: `varying vec2 vUv; uniform vec3 uC; uniform float uK; void main(){ float d=length(vUv-.5)*2.; gl_FragColor=vec4(uC,pow(1.-clamp(d,0.,1.),2.)*uK); }`
+  }));
+  m.position.set(x, y, z); m.renderOrder = 2; scene.add(m); return m;
+}
+const fireGlow = glow(CP[0], CP[1] + 0.06, CP[2], 2.8, 0xff8a30, 0.5);
+glow(C[0], C[1] + 0.05, C[2] + 1.6, 2.2, 0xffc060, 0.4);
+const D = META.dome, DRt = META.domeRot; glow(D[0] + Math.sin(DRt) * 2.2, D[1] + 0.06, D[2] + Math.cos(DRt) * 2.2, 1.3, 0xff7ab8, 0.35);
+META.lanterns.forEach(([x, y, z]) => glow(x, y - 0.95, z, 1.0, 0xffc870, 0.32));
+
+/* ---------- 깃발 ---------- */
+const flagM = new T.MeshLambertMaterial({ color: 0xff5f9e, side: T.DoubleSide, emissive: 0x401020 });
+const flags = META.flags.map(([x, y, z]) => {
+  const fg = new T.BufferGeometry(); fg.setAttribute('position', new T.Float32BufferAttribute([0, 0, 0, 0.55, -0.14, 0, 0, -0.28, 0], 3)); fg.computeVertexNormals();
+  const f = new T.Mesh(fg, flagM); f.position.set(x, y, z); scene.add(f); return f;
+});
+
+/* ---------- 반딧불 ---------- */
+const flies = []; for (let i = 0; i < 70; i++) { const a = rnd() * TAU, r = rnd() * META.isl * 0.92; flies.push([Math.cos(a) * r, 0.6 + rnd() * 4, Math.sin(a) * r]); }
+points(flies, 0xb8ff9a, 0.32, `p+=vec3(sin(uT*.35+aPh*20.)*1.3,sin(uT*.5+aPh*13.)*.6,cos(uT*.3+aPh*17.)*1.3); vA=.35+.65*pow(.5+.5*sin(uT*1.9+aPh*30.),3.);`);
+
+/* ---------- 카메라 조작 ---------- */
+const target = new T.Vector3(0, -1.7, 0.6);
+let az = 0, el = 0.6, dist = 54, azV = 0, idle = 0;
+const ptrs = new Map(); let pinch = 0;
+const cv = R.domElement;
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); idle = 0; });
+cv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const [px, py] = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (ptrs.size === 1) { azV = -(e.clientX - px) * 0.0055; az += azV; el = Math.min(1.25, Math.max(0.28, el + (e.clientY - py) * 0.004)); }
+  else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) dist = Math.min(70, Math.max(16, dist * pinch / d)); pinch = d; }
+  idle = 0;
+});
+const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('wheel', e => { dist = Math.min(70, Math.max(16, dist * (1 + e.deltaY * 0.001))); idle = 0; }, { passive: true });
+
+function resize() {
+  cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
+  R.setSize(innerWidth, innerHeight);
+  uS.value = innerHeight * R.getPixelRatio() / (2 * Math.tan(cam.fov * PI / 360));
+  if (cam.aspect < 1) dist = Math.max(dist, 64);
+}
+addEventListener('resize', resize); resize();
+setTimeout(() => document.getElementById('hint').style.opacity = 0, 6000);
+const exit = document.getElementById('exit');
+if (window.MyWittiApp) { exit.style.display = 'block'; exit.onclick = () => window.MyWittiApp.close(); }
+window.__view = (a, e, d) => { az = a; el = e; dist = d; azV = 0; idle = -1e9; };   // 점검용
+
+/* ---------- 매 프레임 ---------- */
+const clock = new T.Clock(), fpsEl = document.getElementById('fps');
+let frames = 0, fpsT = 0; window.__fps = 0;
+const BX = PX - 0.2, BZ = PZ - 0.3;
+R.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  uT.value = t; idle += dt;
+  if (!ptrs.size) { az += azV; azV *= 0.92; }
+  if (idle > 4) az += (Math.sin(t * 0.12) * 0.32 - az) * 0.004;
+  cam.position.set(target.x + Math.sin(az) * Math.cos(el) * dist, target.y + Math.sin(el) * dist, target.z + Math.cos(az) * Math.cos(el) * dist);
+  cam.lookAt(target);
+  fireLight.intensity = 10 + Math.sin(t * 13) * 1.5 + Math.sin(t * 7.3) * 1.5;
+  fireGlow.material.uniforms.uK.value = 0.46 + Math.sin(t * 11) * 0.06;
+  flags.forEach((f, i) => f.rotation.y = Math.sin(t * 3 + i) * 0.35);
+  boat.position.set(BX, WY + 0.25 + Math.sin(t * 1.4) * 0.025, BZ);   // 배 바닥이 수면 바로 아래에 오도록 boat.rotation.set(0, 0.5 + Math.sin(t * 0.3) * 0.12, Math.sin(t * 1.1) * 0.04);
+  R.render(scene, cam);
+  frames++; fpsT += dt;
+  if (fpsT >= 1) { window.__fps = Math.round(frames / fpsT); fpsEl.textContent = window.__fps + ' fps'; frames = 0; fpsT = 0; }
+});
+})();
+</script>
+</body>
+</html>

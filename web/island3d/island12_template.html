@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>가운데 섬 로우폴리</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;
+  background:radial-gradient(ellipse at 50% 38%,#1b3a72 0%,#0c1d44 50%,#050c22 100%);
+  font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;color:#fff}
+canvas{display:block}
+#ui{position:fixed;left:16px;top:14px;display:flex;gap:12px;align-items:center;z-index:2}
+#exit{display:none;border:0;border-radius:22px;padding:10px 18px;font-size:16px;font-weight:700;color:#173064;
+  background:linear-gradient(#fff,#dfe8ff);box-shadow:0 3px 10px #0007}
+#title{font-weight:800;font-size:19px;text-shadow:0 2px 8px #000a}
+__TABS__
+#hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);font-size:14px;opacity:.7;white-space:nowrap;transition:opacity 1s}
+#wfBtn{position:fixed;right:16px;top:66px;z-index:2;border:0;border-radius:22px;padding:10px 16px;font-size:15px;font-weight:700;color:#dfe8ff;background:#13285acc;box-shadow:0 3px 10px #0007}
+#wfBtn.on{color:#173064;background:linear-gradient(#fff,#dfe8ff)}
+#exBtn{position:fixed;right:16px;top:116px;z-index:2;border:0;border-radius:22px;padding:10px 16px;font-size:15px;font-weight:700;color:#dfe8ff;background:#13285acc;box-shadow:0 3px 10px #0007}
+#exBtn.on{color:#173064;background:linear-gradient(#fff,#ffe9b8)}
+#pad{position:fixed;right:28px;bottom:28px;width:150px;height:150px;border-radius:50%;z-index:2;display:none;touch-action:none;
+  background:radial-gradient(circle,#ffffff22 0%,#ffffff14 60%,#ffffff30 100%);border:2px solid #ffffff55;box-shadow:0 4px 14px #0006}
+#knob{position:absolute;left:45px;top:45px;width:60px;height:60px;border-radius:50%;background:linear-gradient(#fff,#cfdcff);box-shadow:0 3px 8px #0008;pointer-events:none}
+#fps{position:fixed;right:12px;bottom:10px;font:12px monospace;opacity:.55}
+</style>
+</head>
+<body>
+<div id="ui"><button id="exit">← 나가기</button><div id="title">위티버스 가운데 섬</div></div>
+<div id="tabs">__TABLINKS__</div>
+<button id="wfBtn" class="on">💧 폭포 켜짐</button>
+<button id="exBtn">🧭 탐험</button>
+<div id="pad"><div id="knob"></div></div>
+<div id="hint">한 손가락으로 돌리고, 두 손가락으로 확대해 보세요</div>
+<div id="fps"></div>
+<script>__THREE__</script>
+<script>
+(() => {
+const T = THREE, PI = Math.PI, TAU = PI * 2;
+const META = __META__;
+const BIN = Uint8Array.from(atob('__BIN__'), c => c.charCodeAt(0)).buffer;
+
+/* ---------- 기본 설정 ---------- */
+const R = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+R.setPixelRatio(Math.min(devicePixelRatio, __PR__));
+R.setSize(innerWidth, innerHeight);
+R.shadowMap.enabled = true; R.shadowMap.type = T.PCFSoftShadowMap;
+document.body.appendChild(R.domElement);
+const scene = new T.Scene();
+scene.fog = new T.Fog(0x0b1a40, 50, 98);
+const cam = new T.PerspectiveCamera(32, innerWidth / innerHeight, 0.5, 200);
+
+let seed = 20261104;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const uT = { value: 0 }, uS = { value: 1 };
+
+/* ---------- Blender 에서 구운 모델 읽기 ---------- */
+const LUT = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const c = i / 255; LUT[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+function geo(name) {
+  const g = META.groups[name], n = g.n;
+  const q = new Uint16Array(BIN, g.pos, n * 3), c8 = new Uint8Array(BIN, g.col, n * 3);
+  const p = new Float32Array(n * 3), c = new Float32Array(n * 3);
+  for (let i = 0; i < n * 3; i++) { const k = i % 3; p[i] = g.min[k] + q[i] / 65535 * (g.max[k] - g.min[k]); c[i] = LUT[c8[i]]; }
+  const G = new T.BufferGeometry();
+  G.setAttribute('position', new T.BufferAttribute(p, 3)); G.setAttribute('color', new T.BufferAttribute(c, 3));
+  G.computeVertexNormals(); return G;
+}
+const litMat = new T.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+const land = new T.Mesh(geo('lit'), litMat); land.castShadow = land.receiveShadow = true; scene.add(land);
+// 풀바닥: 같은 위치 꼭짓점끼리 법선을 평균해 부드러운 음영(세모 경계가 덜 보이게)
+function smoothNormals(G) {
+  const p = G.attributes.position.array, n = G.attributes.normal.array, acc = new Map(), key = i => Math.round(p[i] * 500) + ',' + Math.round(p[i + 1] * 500) + ',' + Math.round(p[i + 2] * 500);
+  for (let i = 0; i < p.length; i += 3) { const k = key(i); let a = acc.get(k); if (!a) acc.set(k, a = [0, 0, 0]); a[0] += n[i]; a[1] += n[i + 1]; a[2] += n[i + 2]; }
+  for (let i = 0; i < p.length; i += 3) { const a = acc.get(key(i)), l = Math.hypot(a[0], a[1], a[2]) || 1; n[i] = a[0] / l; n[i + 1] = a[1] / l; n[i + 2] = a[2] / l; }
+  G.attributes.normal.needsUpdate = true; return G;
+}
+const ground = new T.Mesh(smoothNormals(geo('ground')), new T.MeshLambertMaterial({ vertexColors: true })); ground.castShadow = ground.receiveShadow = true; scene.add(ground);
+const stones = new T.Mesh(smoothNormals(geo('stone')), new T.MeshLambertMaterial({ vertexColors: true })); stones.receiveShadow = true; scene.add(stones);   // 디딤돌(그림자 안 드리움)
+const trees = new T.Mesh(geo('tree'), litMat); trees.receiveShadow = true; scene.add(trees);   // 나무는 그림자를 드리우지 않음(바닥의 화살표 모양 그림자 제거)
+scene.add(new T.Mesh(geo('emit'), new T.MeshBasicMaterial({ vertexColors: true })));
+const boat = new T.Mesh(geo('boat'), new T.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: T.DoubleSide }));   // 배 안쪽 면도 그림(안 그리면 물이 비쳐 잠겨 보임)
+boat.castShadow = true; scene.add(boat);
+
+/* ---------- 조명 ---------- */
+scene.add(new T.HemisphereLight(0xa8c4ff, 0x2a2244, 2.1));
+const moon = new T.DirectionalLight(0xd2deff, 2.3); moon.position.set(-11, 18, 13);
+moon.castShadow = true; moon.shadow.mapSize.set(2048, 2048);
+Object.assign(moon.shadow.camera, { left: -15, right: 15, top: 15, bottom: -15, near: 1, far: 64 });
+moon.shadow.bias = -0.0006; moon.shadow.normalBias = 0.04; moon.shadow.radius = 3;
+scene.add(moon);
+const C = META.castle, CP = META.camp;
+const castleLight = new T.PointLight(0xffc36e, 9, 13, 1.2); castleLight.position.set(C[0], C[1] + 1.8, C[2] + 2.6); scene.add(castleLight);
+const fireLight = new T.PointLight(0xff8a3a, 11, 9, 1.2); fireLight.position.set(CP[0], CP[1] + 1.0, CP[2]); scene.add(fireLight);
+
+/* ---------- 바다와 빛나는 물결 ---------- */
+const SEA = -7;
+const sea = new T.Mesh(new T.CircleGeometry(34, 96).rotateX(-PI / 2), new T.ShaderMaterial({
+  transparent: true, depthWrite: false, uniforms: { uT },
+  vertexShader: `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+  fragmentShader: `varying vec3 vW; uniform float uT;
+    float br(float a){ float d=atan(sin(a-1.5708),cos(a-1.5708)); return ${(META.isl * 0.66).toFixed(3)}*(1.+.07*sin(3.*a+1.3)+.05*sin(5.*a+2.73)+.025*sin(11.*a+.91))*(1.-.1*exp(-d*d/.3025))*(1.-.14*exp(-pow(atan(sin(a-2.3),cos(a-2.3)),2.)/.16)); }
+    void main(){
+      float d=length(vW.xz), a=atan(vW.z,vW.x), x=d-br(a);
+      float ring=exp(-x*x*1.1)*step(-0.8,x);
+      float w=smoothstep(.55,1.,sin(x*3.6-uT*1.4+sin(a*5.+uT*.3)*1.6))*exp(-max(x,0.)*.32)*step(0.,x);
+      float fade=1.-smoothstep(9.,24.,d);
+      vec3 c=vec3(.03,.09,.24)+vec3(.25,.92,1.)*(ring*1.05+w*.55);
+      gl_FragColor=vec4(c,clamp(fade*.82+ring*.3,0.,1.)*fade);
+    }`
+}));
+sea.position.y = SEA; sea.renderOrder = 1; scene.add(sea);
+
+/* ---------- 점 효과 ---------- */
+function points(pts, color, size, motion, sizeVar = 0.4) {
+  const g = new T.BufferGeometry(), n = pts.length;
+  const ph = new Float32Array(n), sz = new Float32Array(n);
+  for (let i = 0; i < n; i++) { ph[i] = rnd(); sz[i] = size * (1 - sizeVar / 2 + rnd() * sizeVar); }
+  g.setAttribute('position', new T.Float32BufferAttribute(pts.flat(), 3));
+  g.setAttribute('aPh', new T.BufferAttribute(ph, 1));
+  g.setAttribute('aSz', new T.BufferAttribute(sz, 1));
+  const m = new T.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: T.AdditiveBlending,
+    uniforms: { uT, uS, uC: { value: new T.Color(color) } },
+    vertexShader: `attribute float aPh; attribute float aSz; uniform float uT; uniform float uS; varying float vA;
+      void main(){ vec3 p=position; float s=aSz; vA=1.; ${motion}
+        vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv; gl_PointSize=min(s*uS/-mv.z, 64.); }`   /* 가까이 가도 빛 입자가 화면을 크게 덮지 않게 상한(프레임) */,
+    fragmentShader: `uniform vec3 uC; varying float vA;
+      void main(){ float d=length(gl_PointCoord-.5); float a=pow(smoothstep(.5,0.,d),1.7)*vA;
+        gl_FragColor=vec4(uC*(1.+.9*smoothstep(.18,0.,d)),a); }`
+  });
+  const p = new T.Points(g, m); p.renderOrder = 3; p.frustumCulled = false; scene.add(p); return p;
+}
+const TWINKLE = `vA=.55+.45*sin(uT*2.4+aPh*6.283);`;
+points(META.bulbs, 0xffc560, 0.55, TWINKLE);
+points(META.oakBulbs, 0xffd27a, 0.34, TWINKLE);
+points(META.domeStars, 0xe9f2ff, 0.2, TWINKLE);
+points(META.lanterns, 0xffd890, 1.2, `vA=.8+.2*sin(uT*3.+aPh*20.);`, 0.1);
+
+/* ---------- 연못·폭포 ---------- */
+// 연못 물: 섬 가장자리 밖으로는 그리지 않음(rim 밖 discard)
+const waterMat = new T.ShaderMaterial({
+  transparent: true, uniforms: { uT },
+  vertexShader: `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+  fragmentShader: `varying vec3 vW; uniform float uT;
+    float rim(float a){ float d=atan(sin(a-1.5708),cos(a-1.5708)), e=atan(sin(a-2.3),cos(a-2.3));
+      return ${META.isl.toFixed(3)}*(1.+.07*sin(3.*a+1.3)+.05*sin(5.*a+2.73)+.025*sin(11.*a+.91))*(1.-.1*exp(-d*d/.3025))*(1.-.14*exp(-e*e/.16)); }
+    void main(){ float rd=rim(atan(vW.z,vW.x))-length(vW.xz); if(rd<.04) discard;
+      float fa=1.;   /* 2번 방식: 폭포 쪽도 수면을 투명하게 하지 않음(밑바닥이 비쳐 띠가 생기지 않게), 섬 끝에서 물줄기가 이어받음 */
+      float r=sin(vW.x*2.6+uT*1.3)*sin(vW.z*3.1-uT*1.1)+.5*sin((vW.x+vW.z)*5.-uT*2.);
+      vec3 c=mix(vec3(.10,.50,.74),vec3(.36,.88,.98),.5+.28*r); c+=smoothstep(1.15,1.4,r)*.55;
+      if(vW.z>0.) c=mix(c,vec3(.55,.9,1.),smoothstep(2.2,1.0,abs(vW.x-${META.wfx.toFixed(3)}))*smoothstep(1.2,.45,rd));   /* 폭포로 넘어가는 곳은 밝은 하늘색 */
+      gl_FragColor=vec4(c,fa); }`
+});
+const blobR = (a, base, s) => base * (1 + 0.07 * Math.sin(3 * a + s) + 0.05 * Math.sin(5 * a + 2.1 * s) + 0.025 * Math.sin(11 * a + 0.7 * s));
+const WY = -0.06, [PX, PZ, PB, PS] = META.pond, rimZ = META.rimZ, WFX = META.wfx;
+{
+  const sh = new T.Shape(), S = 72;
+  for (let i = 0; i < S; i++) { const a = i / S * TAU, d_ = Math.atan2(Math.sin(a - 0.75), Math.cos(a - 0.75)), r = blobR(a, PB * 1.25, PS) * (1 + 0.3 * Math.exp(-((d_ / 0.75) ** 2)));   /* 넓힌 호수(오른쪽 아래)까지 덮음 */ const x = PX + Math.cos(a) * r, z = PZ + Math.sin(a) * r; i ? sh.lineTo(x, -z) : sh.moveTo(x, -z); }
+  const pond = new T.Mesh(new T.ShapeGeometry(sh, 2).rotateX(-PI / 2), waterMat); pond.position.y = WY; pond.renderOrder = 1; scene.add(pond); window.__pond = pond;
+}
+// 폭포 물줄기: 연못 끝에서 깎인 홈 경사를 타고 내려오다가(앞 8줄) 섬 가장자리에서 떨어짐(나머지)
+const sst = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const notchY = rd => -0.1 - 0.22 * sst(0.6, 0, rd);
+const WF_FWD = 0.1;   // 폭포를 섬 앞으로 내미는 거리(윗부분은 연못에 붙이고, 넘어가는 구간을 늘여 떨어지는 부분 전체를 앞으로; 뒤쪽 테두리 이음선을 덮음)
+const WN = 40, WS = 5, wfGeo = new T.PlaneGeometry(3.6, 1, 16, WN), wp = wfGeo.attributes.position;
+// 섬 테두리 반지름(셰이더 rim 과 같은 식) → 세로 줄마다 그 x 에서의 테두리 z 를 구해 시작선을 테두리 곡선에 맞춤
+const islR = a => { const d = Math.atan2(Math.sin(a - 1.5708), Math.cos(a - 1.5708)), e = Math.atan2(Math.sin(a - 2.3), Math.cos(a - 2.3));
+  return META.isl * (1 + .07 * Math.sin(3 * a + 1.3) + .05 * Math.sin(5 * a + 2.73) + .025 * Math.sin(11 * a + .91)) * (1 - .1 * Math.exp(-d * d / .3025)) * (1 - .14 * Math.exp(-e * e / .16)); };
+const rimAt = X => { let z = rimZ; for (let k = 0; k < 6; k++) { const r = islR(Math.atan2(z, X)); z = Math.sqrt(Math.max(0, r * r - X * X)); } return z; };
+for (let i = 0; i < wp.count; i++) {
+  const row = Math.round((0.5 - wp.getY(i)) * WN), dz = rimAt(WFX + 0.2 + wp.getX(i)) - rimZ;
+  let y, z;
+  // 윗부분(앞 8줄)은 호수 수면 바로 아래에 숨겨 두고(윗변 직선이 안 보이게), 섬 끝(0.1 앞)에서 둥글게 바로 떨어짐(평평하게 튀어나온 부분 없음)
+  const LIP = rimZ + 0.1, yU = WY - 0.02;
+  if (row <= 8) { const t = row / 8; z = rimZ - 0.9 + (LIP - (rimZ - 0.9)) * t; y = yU; }
+  else { const t = (row - 8) / (WN - 8); z = LIP + 0.45 * Math.sqrt(t); y = yU + (SEA - 0.2 - yU) * t; }
+  wp.setY(i, y); wp.setZ(i, z + dz);
+}
+wfGeo.computeVertexNormals();
+const waterfall = new T.Mesh(wfGeo, new T.ShaderMaterial({
+  transparent: true, depthWrite: false, side: T.DoubleSide, uniforms: { uT },
+  vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv=uv; vW=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `varying vec2 vUv; varying vec3 vW; uniform float uT;
+    float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    float n(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
+      return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
+    void main(){ float v=vUv.y+uT*.75;
+      float s=n(vec2(vUv.x*20.,v*5.))*.6+n(vec2(vUv.x*42.,v*11.))*.4;
+      vec3 c=mix(vec3(.30,.78,.95),vec3(.96,1.,1.),smoothstep(.45,.85,s));
+      c=mix(c,vec3(1.),smoothstep(.25,0.,vUv.y)*.6);
+      c=mix(c,vec3(.6,.92,1.),smoothstep(.7,.95,vUv.y)*.6);   /* 넘어가는 윗부분도 밝게(호수와 이어지게) */
+      float el=.12+.12*n(vec2(2.3,v*3.)), er=.12+.12*n(vec2(7.1,v*3.));
+      float a=smoothstep(0.,el+.06,vUv.x)*smoothstep(1.,1.-er-.06,vUv.x)*smoothstep(.02,.1,vUv.y)*smoothstep(1.,.95,vUv.y)*.9;
+      if(vUv.y > .8){ float sd=smoothstep(0.,el+.06,vUv.x)*smoothstep(1.,1.-er-.06,vUv.x); c=mix(c,vec3(.55,.9,1.),.85); a=sd*.95; }   /* 수면 끝과 이어지는 윗부분: 밝게, 불투명 */
+      gl_FragColor=vec4(c,a); }`
+}));
+// 오른쪽으로만 넓힘(폭 3.2→3.6, 중심 +0.2)
+waterfall.position.set(WFX + 0.2, 0, 0); waterfall.renderOrder = 2; scene.add(waterfall);
+window.__show = (wf, pd) => { waterfall.visible = wf; window.__pond.visible = pd; };   // 점검용: 폭포·수면 끄고 켜기
+const foam = []; for (let i = 0; i < 90; i++) foam.push([WFX + (rnd() - 0.5) * 3.1, SEA + 0.1, rimZ + 0.7 + WF_FWD + (rnd() - 0.5) * 0.8]);
+const foamPts = points(foam, 0xd8fbff, 1.1, `float t=fract(uT*.55+aPh); p+=vec3(sin(aPh*50.)*t*1.2,t*1.7,cos(aPh*37.)*t*.9+t*.5); vA=(1.-t)*smoothstep(0.,.12,t)*.55; s*=.6+t*1.1;`, 0.6);
+// 폭포 켜기/끄기 버튼(물줄기 + 물보라)
+{ const b = document.getElementById('wfBtn'); let on = true;
+  b.addEventListener('pointerdown', e => e.stopPropagation());
+  b.addEventListener('click', () => { on = !on; waterfall.visible = foamPts.visible = on; b.classList.toggle('on', on); b.textContent = on ? '💧 폭포 켜짐' : '💧 폭포 꺼짐'; }); }
+
+/* ---------- 모닥불·바닥 불빛 ---------- */
+const fire = []; for (let i = 0; i < 46; i++) fire.push([CP[0] + (rnd() - 0.5) * 0.35, CP[1] + 0.2, CP[2] + (rnd() - 0.5) * 0.35]);
+points(fire, 0xff7a24, 1.3, `float t=fract(uT*1.1+aPh); p.y+=t*1.25; p.x+=sin(aPh*40.+uT*4.)*.1*t; vA=(1.-t)*smoothstep(0.,.1,t); s*=1.-t*.65;`);
+function glow(x, y, z, r, color, k) {
+  const m = new T.Mesh(new T.CircleGeometry(r, 32).rotateX(-PI / 2), new T.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: T.AdditiveBlending, uniforms: { uC: { value: new T.Color(color) }, uK: { value: k } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+    fragmentShader: `varying vec2 vUv; uniform vec3 uC; uniform float uK; void main(){ float d=length(vUv-.5)*2.; gl_FragColor=vec4(uC,pow(1.-clamp(d,0.,1.),2.)*uK); }`
+  }));
+  m.position.set(x, y, z); m.renderOrder = 2; scene.add(m); return m;
+}
+const fireGlow = glow(CP[0], CP[1] + 0.06, CP[2], 2.8, 0xff8a30, 0.5);
+glow(C[0], C[1] + 0.05, C[2] + 1.6, 2.2, 0xffc060, 0.4);
+const D = META.dome, DRt = META.domeRot; glow(D[0] + Math.sin(DRt) * 2.2, D[1] + 0.06, D[2] + Math.cos(DRt) * 2.2, 1.3, 0xff7ab8, 0.35);
+META.lanterns.forEach(([x, y, z]) => glow(x, y - 0.95, z, 1.0, 0xffc870, 0.32));
+
+/* ---------- 깃발 ---------- */
+const flagM = new T.MeshLambertMaterial({ color: 0xff5f9e, side: T.DoubleSide, emissive: 0x401020 });
+const flags = META.flags.map(([x, y, z]) => {
+  const fg = new T.BufferGeometry(); fg.setAttribute('position', new T.Float32BufferAttribute([0, 0, 0, 0.55, -0.14, 0, 0, -0.28, 0], 3)); fg.computeVertexNormals();
+  const f = new T.Mesh(fg, flagM); f.position.set(x, y, z); scene.add(f); return f;
+});
+
+/* ---------- 반딧불 ---------- */
+// 반딧불: 섬 전체가 아니라 나무 둘레에만(사용자 요청). 나무마다 1~2마리, 줄기에서 0.5~1.6 떨어진 곳
+const flies = []; for (const [tx, ty, tz, ts] of META.trees) { const n = rnd() < 0.5 ? 1 : 2; for (let k = 0; k < n; k++) { const a = rnd() * TAU, r = (0.5 + rnd() * 1.1) * ts; flies.push([tx + Math.cos(a) * r, ty + (0.8 + rnd() * 2.6) * ts, tz + Math.sin(a) * r]); } }
+points(flies, 0xb8ff9a, 0.32, `p+=vec3(sin(uT*.35+aPh*20.)*.45,sin(uT*.5+aPh*13.)*.4,cos(uT*.3+aPh*17.)*.45); vA=.35+.65*pow(.5+.5*sin(uT*1.9+aPh*30.),3.);`);
+
+/* ---------- 카메라 조작 ---------- */
+const target = new T.Vector3(0, -1.7, 0.6);
+let az = 0, el = 0.6, dist = 54, azV = 0, idle = 0;
+const ptrs = new Map(); let pinch = 0;
+const cv = R.domElement;
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); idle = 0; });
+cv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const [px, py] = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (ptrs.size === 1) { azV = -(e.clientX - px) * 0.0055; az += azV; el = Math.min(1.25, Math.max(0.28, el + (e.clientY - py) * 0.004)); }
+  else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) dist = Math.min(70, Math.max(window.__exploring ? 6 : 16, dist * pinch / d)); pinch = d; }
+  idle = 0;
+});
+const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('wheel', e => { dist = Math.min(70, Math.max(16, dist * (1 + e.deltaY * 0.001))); idle = 0; }, { passive: true });
+
+function resize() {
+  cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
+  R.setSize(innerWidth, innerHeight);
+  uS.value = innerHeight * R.getPixelRatio() / (2 * Math.tan(cam.fov * PI / 360));
+  if (cam.aspect < 1) dist = Math.max(dist, 64);
+}
+addEventListener('resize', resize); resize();
+setTimeout(() => document.getElementById('hint').style.opacity = 0, 6000);
+const exit = document.getElementById('exit');
+if (window.MyWittiApp) { exit.style.display = 'block'; exit.onclick = () => window.MyWittiApp.close(); }
+window.__view = (a, e, d) => { az = a; el = e; dist = d; azV = 0; idle = -1e9; };   // 점검용
+
+/* ---------- 탐험 모드: 캐릭터 + 터치패드 ---------- */
+const WG = META.walk, WGH = new Int16Array(Uint8Array.from(atob(WG.h), c => c.charCodeAt(0)).buffer), WGM = Uint8Array.from(atob(WG.m), c => c.charCodeAt(0));
+const cell = (x, z) => { const i = Math.round((x - WG.x0) / WG.s), j = Math.round((z - WG.x0) / WG.s); return (i < 0 || j < 0 || i >= WG.n || j >= WG.n) ? -1 : i * WG.n + j; };
+const freeAt = (x, z) => { const c = cell(x, z); return c >= 0 && !WGM[c]; };
+const hAt = (x, z) => {   // 이동 격자 높이(쌍선형 보간)
+  const fi = (x - WG.x0) / WG.s, fj = (z - WG.x0) / WG.s, i = Math.max(0, Math.min(WG.n - 2, Math.floor(fi))), j = Math.max(0, Math.min(WG.n - 2, Math.floor(fj))), u = fi - i, v = fj - j;
+  const g = (a, b) => WGH[a * WG.n + b] / 100;
+  return (g(i, j) * (1 - u) + g(i + 1, j) * u) * (1 - v) + (g(i, j + 1) * (1 - u) + g(i + 1, j + 1) * u) * v; };
+// 캐릭터: 페로(character/0_origin/페로_*.png) — 고양이 귀 로봇. 다리 없이 떠서 다님, 팔은 몸에서 떨어져 떠 있음
+const hero = new T.Group(), body3 = new T.Group(); hero.add(body3);
+const PL_ = c => new T.MeshLambertMaterial({ color: c }), GL_ = c => new T.MeshBasicMaterial({ color: c });
+const LAV = PL_(0xe6e2f7), LAVD = PL_(0xc9c4ea), BLU = PL_(0x5b5fd6), VIS = PL_(0x34285e), YEL = GL_(0xffcb5c);
+const mk = (g, m, x, y, z, sx = 1, sy = 1, sz = 1, par = body3) => { const o = new T.Mesh(g, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); o.castShadow = true; par.add(o); return o; };
+const SPH = new T.SphereGeometry(1, 20, 14);
+// 머리(아래쪽이 살짝 넓은 둥근 머리) + 귀 + 이음선
+const head = new T.Group(); head.position.y = 0.66; body3.add(head);
+{ // 머리 그림: u 0.25 = 정면, v 0 = 정수리
+  const W = 1024, Hh = 512, c3 = document.createElement('canvas'); c3.width = W; c3.height = Hh;
+  const g3 = c3.getContext('2d'), im = g3.createImageData(W, Hh), c4 = document.createElement('canvas'); c4.width = W; c4.height = Hh;
+  const g4 = c4.getContext('2d'), em = g4.createImageData(W, Hh), yel = [255, 203, 92];
+  const lav = [230, 226, 247], blu = [91, 95, 214], vis = [52, 40, 94], seam = [248, 246, 255];
+  const mix = (a, b, k) => [0, 1, 2].map(n => a[n] + (b[n] - a[n]) * k);
+  const sm = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+  // 얼굴 화면 모양: 모서리 둥근 사각(초타원) + 위쪽 가운데가 살짝 아래로 파인 곡선(귀 사이)
+  const shape = (x, y) => {               // 음수 = 안쪽, 값 = 경계까지 대략적인 거리(정규화 단위)
+    const p = 2.8, se = Math.pow(Math.pow(Math.abs(x), p) + Math.pow(Math.abs(y), p), 1 / p) - 1;
+    const top = -0.78 + 0.2 * Math.exp(-Math.pow(x / 0.32, 2)) - y;   // 위쪽 경계(가운데가 아래로 파임)
+    return Math.max(se, top * 1.2);
+  };
+  for (let yy = 0; yy < Hh; yy++) for (let xx = 0; xx < W; xx++) {
+    const u = xx / W, v = yy / Hh, x = (u - 0.25) / 0.155, y = (v - 0.455) / 0.175;
+    const d = shape(x, y), px = 1 / (0.155 * W);                          // 한 픽셀 크기(정규화 단위) → 경계 부드럽게
+    let c = lav;
+    const sk = sm(0.004, -0.004, Math.abs(v - 0.5) - 0.003) * (d > 0.12 ? 1 : 0);   // 머리 둘레 이음선(얼굴 화면 밖에서만)
+    c = mix(c, seam, sk);
+    c = mix(c, blu, sm(px * 1.5, -px * 1.5, d - 0.11));                  // 파란 테두리(두께 일정)
+    c = mix(c, vis, sm(px * 1.5, -px * 1.5, d));                         // 짙은 보라 화면
+    // 눈·입도 그림으로(머리 표면에 딱 붙게). X, Y 는 대략 실제 길이 단위
+    const X = x * 0.32, Y = y * 0.148, pw = 0.0012;
+    const eye = Math.max(...[-1, 1].map(sx => sm(1 + pw * 30, 1 - pw * 30, Math.hypot((X - sx * 0.086) / 0.031, (Y + 0.012) / 0.044))));
+    const sY = 0.04, sd = Math.abs(Math.hypot(X, Y - sY) - 0.035), smile = Y > sY - 0.004 ? sm(0.0085 + pw, 0.0085 - pw, sd) : 0;
+    const gl = Math.max(eye, smile);
+    c = mix(c, yel, gl);
+    const o = (yy * W + xx) * 4; im.data[o] = c[0]; im.data[o + 1] = c[1]; im.data[o + 2] = c[2]; im.data[o + 3] = 255;
+    em.data[o] = yel[0] * gl; em.data[o + 1] = yel[1] * gl; em.data[o + 2] = yel[2] * gl; em.data[o + 3] = 255;
+  }
+  g3.putImageData(im, 0, 0); g4.putImageData(em, 0, 0);
+  const tx3 = new T.CanvasTexture(c3); tx3.colorSpace = T.SRGBColorSpace; tx3.anisotropy = 4;
+  const ex3 = new T.CanvasTexture(c4); ex3.colorSpace = T.SRGBColorSpace;
+  mk(new T.SphereGeometry(1, 64, 40), new T.MeshLambertMaterial({ map: tx3, emissive: 0xffffff, emissiveMap: ex3 }), 0, 0, 0, 0.33, 0.27, 0.29, head);   // 눈·입은 발광 그림으로 빛남
+}
+for (const sx of [-1, 1]) mk(SPH, LAV, sx * 0.17, 0.2, -0.02, 0.1, 0.15, 0.12, head).rotation.z = -sx * 0.25;   // 고양이 귀
+// 몸통(달걀형) + 양옆 파란 덧판 + 노란 띠
+{ // 구의 u: 0=왼쪽(-x), .25=앞(+z), .5=오른쪽(+x), .75=뒤 / v: 0=위
+  const W = 512, Hh = 256, cv2 = document.createElement('canvas'); cv2.width = W; cv2.height = Hh;
+  const g2 = cv2.getContext('2d'), im = g2.createImageData(W, Hh), lav = [230, 226, 247], blu = [91, 95, 214], yl2 = [255, 203, 92];
+  const cv5 = document.createElement('canvas'); cv5.width = W; cv5.height = Hh; const g5 = cv5.getContext('2d'), em2 = g5.createImageData(W, Hh);
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+    const u = x / W, v = y / Hh, ds = Math.min(Math.abs(u - 0.5), u, 1 - u);           // 옆구리(왼·오른쪽)에서 떨어진 정도
+    const w = 0.15 * Math.sqrt(Math.max(0, 1 - Math.pow(v / 0.62, 2)));               // 위쪽은 넓고 아래로 둥글게 좁아짐
+    const k = Math.min(1, Math.max(0, (w - ds) * W * 0.5 + 0.5));                    // 경계 1~2px 부드럽게(계단 현상 없이)
+    let c = [0, 1, 2].map(n => lav[n] + (blu[n] - lav[n]) * k); const o = (y * W + x) * 4;
+    // 가슴의 노란 띠(양끝 둥근 막대): 대략 실제 길이 단위로 선분까지 거리
+    const BX = (u - 0.25) * TAU * 0.17 * 0.95, BY = (v - 0.398) * PI * 0.19 * 0.95, bd = Math.hypot(Math.max(0, Math.abs(BX) - 0.065), BY);
+    const bk = Math.min(1, Math.max(0, (0.012 - bd) / 0.0015 + 0.5));
+    c = c.map((n, q) => Math.round(n + (yl2[q] - n) * bk));
+    im.data[o] = c[0]; im.data[o + 1] = c[1]; im.data[o + 2] = c[2]; im.data[o + 3] = 255;
+    em2.data[o] = yl2[0] * bk; em2.data[o + 1] = yl2[1] * bk; em2.data[o + 2] = yl2[2] * bk; em2.data[o + 3] = 255;
+  }
+  g2.putImageData(im, 0, 0); g5.putImageData(em2, 0, 0);
+  const tex = new T.CanvasTexture(cv2); tex.colorSpace = T.SRGBColorSpace || tex.colorSpace; tex.anisotropy = 4;
+  const ex5 = new T.CanvasTexture(cv5); ex5.colorSpace = T.SRGBColorSpace;
+  mk(new T.SphereGeometry(1, 48, 32), new T.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: ex5 }), 0, 0.27, 0, 0.17, 0.19, 0.16);   // 노란 띠는 발광 그림
+}
+// 팔: 몸에서 떨어져 떠 있는 나뭇잎 모양, 끝은 파랑, 바깥쪽 노란 점
+const arms = [];
+for (const sx of [-1, 1]) {
+  const arm = new T.Group(); arm.position.set(sx * 0.215, 0.36, 0);   // 몸통에 더 가깝게(사용자 요청)
+  body3.add(arm);
+  mk(SPH, LAV, 0, -0.06, 0, 0.055, 0.12, 0.07, arm);
+  mk(SPH, BLU, 0, -0.14, 0, 0.05, 0.06, 0.065, arm);
+  mk(SPH, YEL, sx * 0.045, -0.12, 0, 0.012, 0.022, 0.022, arm);
+  arm.rotation.z = sx * 0.45; arms.push([arm, sx]);
+}
+const limbs = [];
+hero.visible = false; scene.add(hero);
+const pad = document.getElementById('pad'), knob = document.getElementById('knob'), exBtn = document.getElementById('exBtn');
+let padV = [0, 0], padId = null, walkT = 0; const keys = {};
+const padSet = e => { const r = pad.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); const L = Math.hypot(dx, dy), MX = 55; if (L > MX) { dx *= MX / L; dy *= MX / L; }
+  knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; padV = [dx / MX, dy / MX]; };
+pad.addEventListener('pointerdown', e => { e.stopPropagation(); padId = e.pointerId; pad.setPointerCapture(e.pointerId); padSet(e); });
+pad.addEventListener('pointermove', e => { if (e.pointerId === padId) padSet(e); });
+const padUp = e => { if (e.pointerId !== padId) return; padId = null; padV = [0, 0]; knob.style.transform = ''; };
+pad.addEventListener('pointerup', padUp); pad.addEventListener('pointercancel', padUp);
+addEventListener('keydown', e => keys[e.key.toLowerCase()] = 1); addEventListener('keyup', e => keys[e.key.toLowerCase()] = 0);
+const HOME_T = target.clone(); let homeDist = 54;
+exBtn.addEventListener('pointerdown', e => e.stopPropagation());
+exBtn.addEventListener('click', () => {
+  window.__exploring = !window.__exploring; const on = window.__exploring;
+  exBtn.classList.toggle('on', on); exBtn.textContent = on ? '🧭 탐험 끝내기' : '🧭 탐험'; pad.style.display = on ? 'block' : 'none'; hero.visible = on;
+  R.setPixelRatio(on ? Math.min(devicePixelRatio, 1.1) : Math.min(devicePixelRatio, __PR__)); resize();   // 탐험(가까이 보기) 중에는 해상도를 조금 낮춰 프레임 확보
+  if (on) { const sp = META.spawn; hero.position.set(sp[0], hAt(sp[0], sp[1]), sp[1]); hero.rotation.y = PI; homeDist = dist; dist = 11; el = 0.55; }
+  else { dist = homeDist; padV = [0, 0]; knob.style.transform = ''; }
+});
+function heroStep(dt) {
+  let jx = padV[0], jy = padV[1];
+  if (keys['arrowleft'] || keys['a']) jx -= 1;
+  if (keys['arrowright'] || keys['d']) jx += 1;
+  if (keys['arrowup'] || keys['w']) jy -= 1;
+  if (keys['arrowdown'] || keys['s']) jy += 1;
+  const mag = Math.min(1, Math.hypot(jx, jy));
+  if (mag > 0.08) {
+    // 화면 기준 방향을 월드 방향으로(카메라가 바라보는 쪽이 위)
+    const fx = -Math.sin(az), fz = -Math.cos(az), rx = Math.cos(az), rz = -Math.sin(az);
+    let vx = rx * jx - fx * jy, vz = rz * jx - fz * jy; const L = Math.hypot(vx, vz); vx /= L; vz /= L;
+    const sp = 2.6 * mag * dt, p = hero.position;
+    const ok = (x, z) => freeAt(x, z) && freeAt(x + vx * 0.18, z + vz * 0.18);
+    if (ok(p.x + vx * sp, p.z + vz * sp)) { p.x += vx * sp; p.z += vz * sp; }
+    else if (ok(p.x + vx * sp, p.z)) p.x += vx * sp;          // 벽을 따라 미끄러지기
+    else if (ok(p.x, p.z + vz * sp)) p.z += vz * sp;
+    const ty = Math.atan2(vx, vz); let d = ty - hero.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); hero.rotation.y += d * Math.min(1, dt * 12);
+    walkT += dt * 9 * mag;
+  } else walkT *= 0.85;
+  const sw = Math.sin(walkT) * 0.5 * Math.min(1, mag * 2), tt = performance.now() / 1000;
+  arms.forEach(([arm, sx]) => { arm.rotation.x = sw * sx; arm.position.y = 0.36 + Math.sin(tt * 3 + sx) * 0.015; });
+  body3.rotation.x += ((mag > 0.08 ? 0.18 * mag : 0) - body3.rotation.x) * Math.min(1, dt * 8);   // 움직일 때 앞으로 살짝 기울임
+  const gy = hAt(hero.position.x, hero.position.z) + 0.12 + Math.sin(tt * 2.4) * 0.03;          // 바닥에서 살짝 떠서 둥실둥실
+  hero.position.y += (gy - hero.position.y) * Math.min(1, dt * 14);
+}
+window.__hero = () => [hero.position.x, hero.position.y, hero.position.z].map(v => +v.toFixed(2)).join(',');   // 점검용
+window.__pad = (x, y) => { padV = [x, y]; };                                                                    // 점검용
+
+/* ---------- 매 프레임 ---------- */
+const clock = new T.Clock(), fpsEl = document.getElementById('fps');
+let frames = 0, fpsT = 0; window.__fps = 0;
+const BX = PX - 0.2, BZ = PZ - 0.3;
+R.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  uT.value = t; idle += dt;
+  if (!ptrs.size) { az += azV; azV *= 0.92; }
+  if (idle > 4 && !window.__exploring) az += (Math.sin(t * 0.12) * 0.32 - az) * 0.004;
+  if (window.__exploring) { heroStep(dt); target.lerp(new T.Vector3(hero.position.x, hero.position.y + 0.5, hero.position.z), Math.min(1, dt * 5)); }
+  else target.lerp(HOME_T, Math.min(1, dt * 3));
+  cam.position.set(target.x + Math.sin(az) * Math.cos(el) * dist, target.y + Math.sin(el) * dist, target.z + Math.cos(az) * Math.cos(el) * dist);
+  cam.lookAt(target);
+  fireLight.intensity = 10 + Math.sin(t * 13) * 1.5 + Math.sin(t * 7.3) * 1.5;
+  fireGlow.material.uniforms.uK.value = 0.46 + Math.sin(t * 11) * 0.06;
+  flags.forEach((f, i) => f.rotation.y = Math.sin(t * 3 + i) * 0.35);
+  // 물 위에 떠서 흔들림: 위아래 출렁임 + 좌우 기울기(롤) + 앞뒤 끄덕임(피치) + 천천히 방향 돌기 + 제자리에서 조금 맴돌기
+  // (전에는 회전 줄이 주석 뒤에 붙어 실행되지 않았음)
+  boat.position.set(BX + Math.sin(t * 0.23) * 0.12, WY + 0.25 + Math.sin(t * 1.3) * 0.045 + Math.sin(t * 2.1 + 1.0) * 0.015, BZ + Math.cos(t * 0.19) * 0.1);
+  boat.rotation.set(Math.sin(t * 0.9 + 0.6) * 0.035, 0.5 + Math.sin(t * 0.21) * 0.18, Math.sin(t * 1.1) * 0.06 + Math.sin(t * 1.9) * 0.015);
+  R.render(scene, cam);
+  frames++; fpsT += dt;
+  if (fpsT >= 1) { window.__fps = Math.round(frames / fpsT); fpsEl.textContent = window.__fps + ' fps'; frames = 0; fpsT = 0; }
+});
+})();
+</script>
+</body>
+</html>

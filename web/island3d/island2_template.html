@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>가운데 섬 원화 기울이기</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;background:#061b3d;
+  font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;color:#fff}
+canvas{display:block}
+#ui{position:fixed;left:16px;top:14px;display:flex;gap:12px;align-items:center;z-index:2}
+#exit{display:none;border:0;border-radius:22px;padding:10px 18px;font-size:16px;font-weight:700;color:#173064;
+  background:linear-gradient(#fff,#dfe8ff);box-shadow:0 3px 10px #0007}
+#title{font-weight:800;font-size:19px;text-shadow:0 2px 8px #000a}
+__TABS__
+#hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);font-size:14px;opacity:.75;white-space:nowrap;transition:opacity 1s;text-shadow:0 1px 4px #000}
+#vig{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse 75% 70% at 50% 50%,#0000 55%,#061b3dcc 100%)}
+#fps{position:fixed;right:12px;bottom:10px;font:12px monospace;opacity:.55}
+</style>
+</head>
+<body>
+<div id="ui"><button id="exit">← 나가기</button><div id="title">위티버스 가운데 섬</div></div>
+<div id="tabs">__TABLINKS__</div>
+<div id="hint">손가락으로 밀거나 태블릿을 기울여 보세요 · 두 손가락으로 다가가기</div>
+<div id="vig"></div>
+<div id="fps"></div>
+<script>__THREE__</script>
+<script>
+(() => {
+const T = THREE;
+const R = new T.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+R.setPixelRatio(Math.min(devicePixelRatio, __PR__));
+R.setClearColor(0x061b3d);
+document.body.appendChild(R.domElement);
+const scene = new T.Scene();
+const cam = new T.PerspectiveCamera(30, 1, 0.5, 200);
+
+const IW = 16, IH = 10;                  // 원화 비율 2560×1600 = 1.6
+const DEPTH = 3.0;                       // 가장 가까운 곳과 먼 곳의 앞뒤 거리
+const load = src => { const t = new T.TextureLoader().load(src); return t; };
+const color = load('__IMG__'); color.colorSpace = T.SRGBColorSpace; color.anisotropy = 4;
+const depth = load('__DEPTH__');
+const uT = { value: 0 };
+
+// 원화를 붙인 격자 판: 정점마다 깊이 지도만큼 앞으로 밀어낸다
+const geo = new T.PlaneGeometry(IW, IH, 320, 200);
+const mat = new T.ShaderMaterial({
+  uniforms: { uColor: { value: color }, uDepth: { value: depth }, uK: { value: DEPTH }, uT, uBg: { value: new T.Color(0x061b3d) } },   // T.Color 는 선형 공간 값으로 보관됨
+  vertexShader: `uniform sampler2D uDepth; uniform float uK; varying vec2 vUv;
+    void main(){ vUv=uv; float d=texture2D(uDepth,uv).r; vec3 p=position; p.z+=(d-.35)*uK;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.); }`,
+  fragmentShader: `uniform sampler2D uColor; uniform vec3 uBg; varying vec2 vUv;
+    void main(){ vec4 c=texture2D(uColor,vUv);
+      float ex=smoothstep(0.,.13,vUv.x)*smoothstep(1.,.87,vUv.x);
+      float ey=smoothstep(0.,.1,vUv.y)*smoothstep(1.,.9,vUv.y);
+      float e=ex*mix(1.,ey,smoothstep(.22,.36,abs(vUv.x-.5)));   // 위아래는 가운데(깃발·물보라)를 남기고 모서리만
+      e*=smoothstep(0.,.035,vUv.y)*smoothstep(1.,.988,vUv.y);       // 위아래 끝선은 얇게 전부
+      gl_FragColor=vec4(mix(uBg,c.rgb,e),1.);
+      #include <colorspace_fragment>
+    }`
+});
+const plane = new T.Mesh(geo, mat); scene.add(plane);
+// 기울였을 때 화면 가장자리가 비지 않도록 뒤에 넓은 배경판
+const bg = new T.Mesh(new T.PlaneGeometry(IW * 3, IH * 3), new T.MeshBasicMaterial({ color: 0x061b3d }));
+bg.position.z = -0.35 * DEPTH - 0.05; scene.add(bg);
+
+/* 반딧불: 깊이 층 사이에 떠 있어서 입체감을 보탠다 */
+{
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const n = 60, pos = [], ph = [];
+  for (let i = 0; i < n; i++) { pos.push((rnd() - 0.5) * IW * 0.55, (rnd() - 0.35) * IH * 0.6, (rnd() - 0.2) * DEPTH * 1.2); ph.push(rnd()); }
+  const g = new T.BufferGeometry();
+  g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aPh', new T.Float32BufferAttribute(ph, 1));
+  const m = new T.ShaderMaterial({
+    transparent: true, depthWrite: false, depthTest: false, blending: T.AdditiveBlending, uniforms: { uT, uS: { value: 1 } },
+    vertexShader: `attribute float aPh; uniform float uT; uniform float uS; varying float vA;
+      void main(){ vec3 p=position+vec3(sin(uT*.3+aPh*20.)*.5,sin(uT*.45+aPh*13.)*.3,0.);
+        vA=.25+.75*pow(.5+.5*sin(uT*1.7+aPh*30.),3.);
+        vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv; gl_PointSize=.16*uS/-mv.z; }`,
+    fragmentShader: `varying float vA; void main(){ float d=length(gl_PointCoord-.5);
+      gl_FragColor=vec4(vec3(1.,.9,.55)*(1.+smoothstep(.2,0.,d)),pow(smoothstep(.5,0.,d),1.7)*vA); }`
+  });
+  const p = new T.Points(g, m); p.frustumCulled = false; scene.add(p); window.__flies = m;
+}
+
+/* 시점: 몇 도만 움직인다 */
+const MAXY = 0.14, MAXP = 0.08;          // 좌우 약 8도, 위아래 약 5도
+let base = 40, zoom = 1, zoomT = 1;
+let yaw = 0, pitch = 0, dragY = 0, dragP = 0, gyroY = 0, gyroP = 0, idle = 99;
+const clamp = (v, a) => Math.max(-a, Math.min(a, v));
+
+const ptrs = new Map(); let pinch = 0;
+const cv = R.domElement;
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); idle = 0; });
+cv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const [px, py] = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (ptrs.size === 1) { dragY = clamp(dragY - (e.clientX - px) * 0.0009, MAXY); dragP = clamp(dragP + (e.clientY - py) * 0.0009, MAXP); }
+  else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) zoomT = Math.max(1, Math.min(1.7, zoomT * d / pinch)); pinch = d; }
+  idle = 0;
+});
+const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('wheel', e => { zoomT = Math.max(1, Math.min(1.7, zoomT * (1 - e.deltaY * 0.001))); }, { passive: true });
+
+// 태블릿 기울이기: 처음 잡은 자세를 기준으로 조금만 반영
+let g0 = null;
+addEventListener('deviceorientation', e => {
+  if (e.beta == null) return;
+  const ang = (screen.orientation && screen.orientation.angle) || 0;
+  let x = e.gamma, y = e.beta;                                   // 세로 기준
+  if (ang === 90) { x = e.beta; y = -e.gamma; } else if (ang === 270) { x = -e.beta; y = e.gamma; }
+  if (!g0) g0 = [x, y];
+  g0[0] += (x - g0[0]) * 0.004; g0[1] += (y - g0[1]) * 0.004;     // 자세가 바뀌면 기준도 천천히 따라감
+  gyroY = clamp(-(x - g0[0]) * 0.006, MAXY); gyroP = clamp((y - g0[1]) * 0.006, MAXP);
+});
+
+function resize() {
+  const w = innerWidth, h = innerHeight; R.setSize(w, h);
+  cam.aspect = w / h;
+  const vfov = cam.fov * Math.PI / 180, fitH = IH / 2 / Math.tan(vfov / 2), fitW = IW / 2 / (Math.tan(vfov / 2) * cam.aspect);
+  base = Math.max(fitH, fitW) * 1.16;                          // 그림 전체가 여유 있게 들어오도록
+  cam.updateProjectionMatrix();
+  window.__flies.uniforms.uS.value = h * R.getPixelRatio() / (2 * Math.tan(vfov / 2));
+}
+addEventListener('resize', resize); resize();
+
+const exit = document.getElementById('exit');
+if (window.MyWittiApp) { exit.style.display = 'block'; exit.onclick = () => window.MyWittiApp.close(); }
+setTimeout(() => document.getElementById('hint').style.opacity = 0, 6000);
+
+const clock = new T.Clock(), fpsEl = document.getElementById('fps');
+let frames = 0, fpsT = 0; window.__fps = 0;
+const target = new T.Vector3(0, -0.4, 0);
+R.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime; uT.value = t; idle += dt;
+  if (!ptrs.size) { dragY *= 0.97; dragP *= 0.97; }                // 손을 떼면 천천히 제자리로
+  const sway = Math.min(1, Math.max(0, idle - 2) / 3);
+  const ty = clamp(dragY + gyroY + Math.sin(t * 0.33) * 0.05 * sway, MAXY);
+  const tp = clamp(dragP + gyroP + Math.sin(t * 0.21) * 0.025 * sway, MAXP);
+  yaw += (ty - yaw) * 0.1; pitch += (tp - pitch) * 0.1; zoom += (zoomT - zoom) * 0.1;
+  const D = base / zoom;
+  cam.position.set(target.x + Math.sin(yaw) * D, target.y + Math.sin(pitch) * D, Math.cos(yaw) * Math.cos(pitch) * D);
+  cam.lookAt(target);
+  R.render(scene, cam);
+  frames++; fpsT += dt;
+  if (fpsT >= 1) { window.__fps = Math.round(frames / fpsT); fpsEl.textContent = window.__fps + ' fps'; frames = 0; fpsT = 0; }
+});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>가운데 섬 회전 그림</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;background:#061b3d;
+  font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;color:#fff}
+canvas{display:block}
+#ui{position:fixed;left:16px;top:14px;display:flex;gap:12px;align-items:center;z-index:2}
+#exit{display:none;border:0;border-radius:22px;padding:10px 18px;font-size:16px;font-weight:700;color:#173064;
+  background:linear-gradient(#fff,#dfe8ff);box-shadow:0 3px 10px #0007}
+#title{font-weight:800;font-size:19px;text-shadow:0 2px 8px #000a}
+__TABS__
+#hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);font-size:14px;opacity:.75;white-space:nowrap;transition:opacity 1s;text-shadow:0 1px 4px #000}
+#vig{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse 75% 70% at 50% 50%,#0000 55%,#061b3dcc 100%)}
+#ang{position:fixed;left:16px;bottom:12px;font:13px monospace;opacity:.55}
+#fps{position:fixed;right:12px;bottom:10px;font:12px monospace;opacity:.55}
+#load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;opacity:.7}
+</style>
+</head>
+<body>
+<div id="ui"><button id="exit">← 나가기</button><div id="title">위티버스 가운데 섬</div></div>
+<div id="tabs">__TABLINKS__</div>
+<div id="hint">좌우로 밀어서 섬을 돌려 보세요 · 두 손가락으로 다가가기</div>
+<div id="vig"></div>
+<div id="load">그림 불러오는 중…</div>
+<div id="ang"></div>
+<div id="fps"></div>
+<script>__THREE__</script>
+<script>
+(() => {
+const T = THREE;
+const VIEWS = __VIEWS__;                          // [[각도, 그림, 깊이], ...]
+const R = new T.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+R.setPixelRatio(Math.min(devicePixelRatio, __PR__));
+R.setClearColor(0x061b3d); R.autoClear = false;
+document.body.appendChild(R.domElement);
+const cam = new T.PerspectiveCamera(30, 1, 0.5, 200);
+const IW = 16, IH = 10, DEPTH = 2.6;
+
+let left = VIEWS.length * 2;
+const loader = new T.TextureLoader();
+const done = () => { if (--left === 0) document.getElementById('load').remove(); };
+const V = VIEWS.map(([a, img, dep]) => {
+  const c = loader.load(img, done); c.colorSpace = T.SRGBColorSpace; c.anisotropy = 4;
+  return { a, c, d: loader.load(dep, done) };
+});
+
+// 깊이만큼 밀어낸 판 두 장(지금 그림, 다음 그림). 각자 따로 깊이 검사하도록 장면을 나눈다.
+function layer(transparent) {
+  const mat = new T.ShaderMaterial({
+    transparent, depthTest: true, depthWrite: true,
+    uniforms: { uColor: { value: null }, uDepth: { value: null }, uK: { value: DEPTH }, uA: { value: 1 }, uBg: { value: new T.Color(0x061b3d) } },
+    vertexShader: `uniform sampler2D uDepth; uniform float uK; varying vec2 vUv;
+      void main(){ vUv=uv; float d=texture2D(uDepth,uv).r; vec3 p=position; p.z+=(d-.35)*uK;
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.); }`,
+    fragmentShader: `uniform sampler2D uColor; uniform vec3 uBg; uniform float uA; varying vec2 vUv;
+      void main(){ vec4 c=texture2D(uColor,vUv);
+        float e=smoothstep(0.,.06,vUv.x)*smoothstep(1.,.94,vUv.x)*smoothstep(0.,.04,vUv.y)*smoothstep(1.,.96,vUv.y);
+        gl_FragColor=vec4(mix(uBg,c.rgb,e),uA);
+        #include <colorspace_fragment>
+      }`
+  });
+  const s = new T.Scene(), m = new T.Mesh(new T.PlaneGeometry(IW, IH, 200, 125), mat);
+  s.add(m); return { s, m, u: mat.uniforms };
+}
+const L0 = layer(false), L1 = layer(true);
+
+/* 각도 상태 */
+let th = 0, thV = 0, pitch = 0, dragP = 0, zoom = 1, zoomT = 1, idle = 0;
+const MAXT = 9 * Math.PI / 180, MAXP = 0.08;     // 한 장 안에서 실제로 기울이는 최대 각
+const wrap = a => ((a % 360) + 360) % 360;
+const angs = V.map(v => v.a);
+function pair(t) {
+  t = wrap(t);
+  let i = angs.length - 1;
+  for (let k = 0; k < angs.length; k++) if (angs[k] <= t) i = k;
+  const j = (i + 1) % angs.length, gap = wrap(angs[j] - angs[i]) || 360;
+  return { i, j, u: wrap(t - angs[i]) / gap, gap };
+}
+const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const tilt = d => Math.max(-MAXT, Math.min(MAXT, d * Math.PI / 180 * 0.45));
+const nearest = t => { let best = 0, bd = 1e9; angs.forEach(a => { let d = wrap(t - a); if (d > 180) d -= 360; if (Math.abs(d) < bd) { bd = Math.abs(d); best = t - d; } }); return best; };
+
+const ptrs = new Map(); let pinch = 0, snapTo = null;
+const cv = R.domElement;
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); idle = 0; thV = 0; snapTo = null; });
+cv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const [px, py] = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (ptrs.size === 1) { thV = -(e.clientX - px) * 0.12; th += thV; dragP = Math.max(-MAXP, Math.min(MAXP, dragP + (e.clientY - py) * 0.0009)); }
+  else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) zoomT = Math.max(1, Math.min(1.7, zoomT * d / pinch)); pinch = d; }
+  idle = 0;
+});
+const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('wheel', e => { zoomT = Math.max(1, Math.min(1.7, zoomT * (1 - e.deltaY * 0.001))); }, { passive: true });
+window.__th = t => { th = t; thV = 0; snapTo = null; idle = -1e9; };   // 점검용
+
+let base = 40;
+function resize() {
+  const w = innerWidth, h = innerHeight; R.setSize(w, h); cam.aspect = w / h;
+  const vf = cam.fov * Math.PI / 180, fitH = IH / 2 / Math.tan(vf / 2), fitW = IW / 2 / (Math.tan(vf / 2) * cam.aspect);
+  base = Math.max(fitH, fitW) * 1.08; cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+const exit = document.getElementById('exit');
+if (window.MyWittiApp) { exit.style.display = 'block'; exit.onclick = () => window.MyWittiApp.close(); }
+setTimeout(() => document.getElementById('hint').style.opacity = 0, 6000);
+
+const clock = new T.Clock(), fpsEl = document.getElementById('fps'), angEl = document.getElementById('ang');
+let frames = 0, fpsT = 0; window.__fps = 0;
+const target = new T.Vector3(0, -0.3, 0);
+function place(L, v, yaw, alpha) {
+  L.u.uColor.value = v.c; L.u.uDepth.value = v.d; L.u.uA.value = alpha; L.m.rotation.y = yaw;
+}
+R.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime; idle += dt;
+  if (!ptrs.size) {
+    if (Math.abs(thV) > 0.05) { th += thV; thV *= 0.93; }
+    else if (idle > 5) th += dt * 6;                                         // 가만히 두면 천천히 돈다
+    else { if (snapTo === null) snapTo = nearest(th); th += (snapTo - th) * 0.08; }   // 가까운 그림에 멈춤
+    dragP *= 0.95;
+  }
+  const p = pair(th), w = sstep(0.32, 0.68, p.u);
+  const di = p.u * p.gap, dj = di - p.gap;                                 // 각 그림 기준으로 지나온 각도
+  pitch += (dragP - pitch) * 0.1; zoom += (zoomT - zoom) * 0.1;
+  const D = base / zoom;
+  cam.position.set(target.x, target.y + Math.sin(pitch) * D, Math.cos(pitch) * D); cam.lookAt(target);
+  R.clear();
+  if (w < 0.999) { place(L0, V[p.i], -tilt(di), 1); R.render(L0.s, cam); }
+  if (w > 0.001) { R.clearDepth(); place(L1, V[p.j], -tilt(dj), w < 0.999 ? w : 1); L1.m.material.transparent = w < 0.999; R.render(L1.s, cam); }
+  angEl.textContent = Math.round(wrap(th)) + '°';
+  frames++; fpsT += dt;
+  if (fpsT >= 1) { window.__fps = Math.round(frames / fpsT); fpsEl.textContent = window.__fps + ' fps'; frames = 0; fpsT = 0; }
+});
+})();
+</script>
+</body>
+</html>
