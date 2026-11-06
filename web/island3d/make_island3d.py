@@ -8,7 +8,7 @@ three = open(os.path.join(here, '..', 'tools', 'three_inline.txt'), encoding='ut
 TABS = ('#tabs{position:fixed;top:14px;right:16px;display:flex;gap:0;border-radius:24px;overflow:hidden;box-shadow:0 3px 10px #0007;z-index:2}'
         '#tabs a{padding:10px 16px;font-size:15px;font-weight:700;color:#dfe8ff;background:#13285acc;text-decoration:none}'
         '#tabs a.on{color:#173064;background:linear-gradient(#fff,#dfe8ff)}')
-PAGES = [('index.html', '샘플 1 · 코드 3D'), ('sample1_1.html', '샘플 1-1 · 로우폴리'), ('sample1_2.html', '샘플 1-2 · 원화 맞춤'), ('sample2.html', '샘플 2 · 원화 기울이기'), ('sample2_2.html', '샘플 2-2 · 회전 그림')]
+PAGES = [('index.html', '샘플 1 · 코드 3D'), ('sample1_1.html', '샘플 1-1 · 로우폴리'), ('sample1_2.html', '샘플 1-2 · 원화 맞춤'), ('sample2.html', '샘플 2 · 원화 기울이기'), ('sample2_2.html', '샘플 2-2 · 회전 그림'), ('sample3.html', '샘플 3 · 3D 지구')]
 VIEWS22 = [0, 30, 90, 120, 180, 210, 270, 300, 330]      # src/views22 (prep_views.py 결과). 60·150·240 은 제미나이 결과가 어긋나 제외
 def links(cur): return ''.join('<a%s href="%s">%s</a>' % (' class="on"' if f == cur else '', f, t) for f, t in PAGES)
 src = lambda f: os.path.join(here, 'src', f)
@@ -36,3 +36,17 @@ build('island2_template.html', 'sample2.html', 'sample2.html', {'__IMG__': uri('
 import json
 build('island22_template.html', 'sample2_2.html', 'sample2_2.html',
       {'__VIEWS__': json.dumps([[a, uri('views22/v_%03d.jpg' % a, 'image/jpeg'), uri('views22/d_%03d.png' % a, 'image/png')] for a in VIEWS22])})
+# 샘플 3 · 3D 지구: home_hero_earth 로띠의 지구 그림을 3D 구로 만든 것(src/globe3, 생성 스크립트는 globe3/)
+G = lambda f: os.path.join(here, 'src', 'globe3', f)
+guri = lambda f: 'data:image/png;base64,' + base64.b64encode(open(G(f), 'rb').read()).decode()
+from PIL import Image
+gplaced = json.load(open(G('props/placed.json'), encoding='utf-8'))
+gassets = {'tex': guri('tex.png'),
+           'props': [{**p, 'src': guri('props/' + p['file'])} for p in gplaced],
+           'trees': json.load(open(G('trees.json'), encoding='utf-8')),   # 3D 나무 배치(globe3/place_trees.py)
+           'buildings': json.load(open(G('buildings.json'), encoding='utf-8')),   # 3D 집·풍차 배치(globe3/place_buildings.py)
+           'landmarks': json.load(open(G('landmarks.json'), encoding='utf-8')),   # 3D 산·바위·무지개 배치(globe3/place_landmarks.py)
+           'coast': json.load(open(G('coast.json'), encoding='utf-8')),   # 3D 등대·돛단배 배치(globe3/place_coast.py)
+           'polar': json.load(open(G('polar.json'), encoding='utf-8')),   # 3D 이글루·펭귄 배치(globe3/place_polar.py)
+           'clouds': {k: {'src': guri(k + '.png'), 'w': Image.open(G(k + '.png')).width, 'h': Image.open(G(k + '.png')).height} for k in ['cf1', 'cf2', 'cb1', 'cb2']}}
+build('island3_template.html', 'sample3.html', 'sample3.html', {'__ASSETS__': json.dumps(gassets)})

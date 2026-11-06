@@ -14,6 +14,7 @@
 | **샘플 1-2 · 원화 맞춤** | 원화에 맞춘 성·돔·캠프·나무·폭포·꽃, 폭포 켜기/끄기, **🧭 탐험**(페로 캐릭터를 터치패드로 움직임) |
 | 샘플 2 · 원화 기울이기 | 원화 + 깊이 지도로 살짝 기울이기 |
 | 샘플 2-2 · 회전 그림 | 여러 방향 그림을 돌려 보기 |
+| 샘플 3 · 3D 지구 | 홈 배너 로띠(`home_hero_earth`)의 그림 질감을 살린 3D 지구. 대륙 4개와 섬, 바다 물결·물결선, 3D 오브젝트(나무 4종·집·풍차·산·무지개·등대·돛단배·이글루·펭귄), 구름. 한 손가락으로 굴리기, 두 손가락으로 돌리기·확대, 왼쪽에서 FPS 상한(90/60/45, 기본 45) 선택 |
 
 뒤로가기: 3D → 지도 → 앱 종료.
 
@@ -28,6 +29,11 @@ web/
   island3d/           3D 샘플 템플릿(island*_template.html), 생성 스크립트(make_island3d.py)
     blender/          샘플 1-1·1-2 모델 생성(build_island11.py, build_island12.py)
     src/              모델 결과(island1x.bin/json), 원화·깊이 지도, 회전 그림(views22)
+    globe3/           샘플 3 생성 스크립트, 결과는 src/globe3/
+                      지형 텍스처: build_tex3.py(현재 대륙·섬 설계. build_tex.py·build_tex2.py는 이전 방식)
+                      3D 오브젝트 배치(이 순서로 실행. 뒤 단계가 trees.json의 겹치는 나무를 정리):
+                      place_trees.py -> place_buildings.py -> place_landmarks.py -> place_coast.py -> place_polar.py
+                      그림 물체(로띠 원본 잘라낸 2D 카드): props.py, props2.py, place.py
 build.sh              생성 + 빌드 + (선택) 설치
 ```
 
