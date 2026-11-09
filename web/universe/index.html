@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>우주 천문대</title>
+<!--
+  우주 천문대 1단계 시제품: 위티 앱 우주 화면(유니티 UniverseView)을 웹으로 다시 만든 것.
+  - 리소스(res/)는 tools/extract_universe.py 가 원본 웹 빌드의 공개 묶음에서 꺼낸 것(Spine 4.1, 그림, 배치, 글자, 소리).
+  - 화면 배치는 res/layout.json(유니티 RectTransform 계층)을 그대로 계산해 DOM 으로 세운다(기준 1920x1200, Expand).
+  - Spine 은 spine-webgl 4.1 로 그리되, 원형 마스크(ClippingAttachment)는 CPU 로 삼각형을 자르지 않고 GPU 스텐실로 처리한다.
+    (원본은 이 CPU 클리핑이 프레임 시간의 약 70%를 차지했다)
+  - 층 구성: #under(배경·궤도·카드 그림) → WebGL 캔버스(Spine) → #over(글자·버튼·액자)
+-->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#gl{position:fixed;left:0;top:0;width:100%;height:100%;z-index:1;display:block}
+.layer{position:fixed;left:0;top:0;width:1920px;height:1200px;transform-origin:0 0;pointer-events:none}
+#under{z-index:0}#over{z-index:2}
+.n{position:absolute;box-sizing:border-box;background-repeat:no-repeat;background-size:100% 100%}
+.n.btn{pointer-events:auto;cursor:pointer}
+.n.txt{display:flex;align-items:center;justify-content:center}
+.n.txt img{display:block}
+/* 손가락 안내: common_finger_all 은 176x151 칸 4x4(15칸) 동작 묶음 → 한 칸씩 넘김(배경 크기·위치는 JS 가 칸 크기에 맞춤) */
+#stars{position:absolute;inset:0;display:none}
+.twinkle{position:absolute;border-radius:50%;background:#fff;box-shadow:0 0 6px 2px rgba(190,220,255,.6);animation:tw 3s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:.1;transform:scale(.6)}50%{opacity:1;transform:scale(1)}}
+#load{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:#0b1430;color:#cfe3ff;font:700 26px system-ui,sans-serif}
+#fps{position:fixed;right:10px;bottom:8px;z-index:6;font:12px monospace;color:#fff;opacity:.5;pointer-events:none}
+</style>
+</head>
+<body>
+<img id="bg" alt="" style="position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;display:none;pointer-events:none">
+<canvas id="shot" class="layer" width="1920" height="1200" style="z-index:0;display:none"></canvas>
+<div id="under" class="layer"><div id="stars"></div></div>
+<canvas id="gl"></canvas>
+<div id="over" class="layer"></div>
+<div id="load">우주로 이동하고 있어요.</div>
+<div id="fps"></div>
+<script src="lib/spine-webgl.min.js"></script>
+<script>
+(async () => {
+const SW = 1920, SH = 1200;                       // 유니티 CanvasScaler 기준 해상도(Expand)
+const RES = 'res/';
+const PLANETS = ['Sun','Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune'];   // PlaNet00~08, ss00~ss08 순서
+const NAME_KO = {Sun:'태양',Mercury:'수성',Venus:'금성',Earth:'지구',Mars:'화성',Jupiter:'목성',Saturn:'토성',Uranus:'천왕성',Neptune:'해왕성'};
+const $ = id => document.getElementById(id);
+const getJSON = p => fetch(RES + p).then(r => r.json());
+const [L, SPR, TXT, STR] = await Promise.all([getJSON('layout.json'), getJSON('sprites.json'), getJSON('text/text.json'), getJSON('strings.json')]);   // STR: 원본 한국어 문구표(행성 이름·카드 제목)
+
+// ---------- 소리 ----------
+const snd = {};
+const audio = n => (snd[n] ||= Object.assign(new Audio(RES + 'snd/' + n + '.m4a'), {preload:'auto'}));
+let voice = null, bgm = null;
+function sfx(n){ if (!n) return; const a = audio(n).cloneNode(); a.play().catch(() => {}); }
+function say(n, onEnd){   // onEnd: 끝나거나 재생에 실패하면 한 번 부름
+  if (voice){ voice.pause(); voice.currentTime = 0; voice.onended = null; }
+  const a = voice = audio(n); let fired = false; const end = () => { if (!fired && voice === a){ fired = true; onEnd && onEnd(); } };
+  a.onended = end; a.onerror = end; a.currentTime = 0; a.play().catch(end);
+}
+function hush(){ if (voice){ voice.onended = null; voice.pause(); voice.currentTime = 0; voice = null; } }
+function startBgm(){ if (bgm) return; bgm = audio('UniverseBGM'); bgm.loop = true; bgm.volume = 0.5; bgm.play().catch(() => { bgm = null; }); }
+
+// ---------- 배치: 유니티 RectTransform → 화면 좌표(아래-왼쪽 원점, y 위로) ----------
+// 노드의 월드 변환: q(노드 사각형 왼아래 기준 좌표) → o + s*q
+const nodes = [];
+function place(n, parent){
+  const P = parent ? parent.size : [SW, SH];
+  const aMin = [n.amin[0]*P[0], n.amin[1]*P[1]], aMax = [n.amax[0]*P[0], n.amax[1]*P[1]];
+  const size = [aMax[0]-aMin[0]+n.size[0], aMax[1]-aMin[1]+n.size[1]];
+  const piv = [aMin[0]+(aMax[0]-aMin[0])*n.piv[0]+n.pos[0], aMin[1]+(aMax[1]-aMin[1])*n.piv[1]+n.pos[1]];
+  const ps = parent ? parent.s : 1, po = parent ? parent.o : [0, 0];
+  n.size = size; n.s = ps * n.scale;
+  n.o = [po[0] + ps*(piv[0] - size[0]*n.piv[0]*n.scale), po[1] + ps*(piv[1] - size[1]*n.piv[1]*n.scale)];
+  n.pivW = [n.o[0] + size[0]*n.piv[0]*n.s, n.o[1] + size[1]*n.piv[1]*n.s];
+  n.parent = parent; nodes.push(n);
+  for (const k of n.kids || []) place(k, n);
+}
+place(L, null);
+const find = (n, path) => path.split('/').reduce((x, p) => x && (x.kids || []).find(k => k.name === p), n);
+const css = n => ({left: n.o[0] + 'px', top: (SH - n.o[1] - n.size[1]*n.s) + 'px', width: n.size[0]*n.s + 'px', height: n.size[1]*n.s + 'px'});
+
+// DOM 만들기: 배경류는 #under, 나머지는 #over
+function isUnder(n){
+  if (n.name === 'Track') return true;
+  if (n.img === 'common_white') return true;                     // 상세 창·팝업의 검은 배경
+  if (n.parent && n.parent.mask && n.parent.name === 'Mask') return true;   // 카드 그림(마스크 안)
+  return false;
+}
+const IMG = {};
+const imgOf = name => IMG[name] || (IMG[name] = Object.assign(new Image(), {src: RES + 'img/' + name + '.png'}));
+// 9분할 원본 자르기 값: 테두리만으로 폭(높이)이 꽉 차 가운데 칸이 0 이면, 유니티처럼 경계 한 줄(1px)을 늘여 채우도록 한쪽을 1 줄임
+function sliceOf(name){ const S = SPR[name], [bl, bb, br, bt] = S.border; return [bl + br >= S.w ? bl - 1 : bl, bb + bt >= S.h ? bb - 1 : bb, br, bt]; }
+function nine(g, im, [bl, bb, br, bt], x, y, w, h, k, cut){   // 9분할 그림(테두리 폭은 원본 픽셀 × 배율, cut = 원본 자르기 값)
+  const W = im.naturalWidth, H = im.naturalHeight, L = bl*k, R = br*k, T = bt*k, B = bb*k, [cl, cb, cr, ct] = cut;
+  const sx = [0, cl, W - cr, W], sy = [0, ct, H - cb, H], dx = [x, x + L, x + w - R, x + w], dy = [y, y + T, y + h - B, y + h];
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++){
+    const sw = sx[i+1] - sx[i], sh = sy[j+1] - sy[j], dw = dx[i+1] - dx[i], dh = dy[j+1] - dy[j];
+    if (sw > 0 && sh > 0 && dw > 0 && dh > 0) g.drawImage(im, sx[i], sy[j], sw, sh, dx[i], dy[j], dw, dh);
+  }
+}
+function textImg(s, size){
+  const t = TXT[s + '|' + size]; if (!t) return null;
+  const im = new Image(); im.src = RES + 'text/' + t.f; im.style.width = t.w + 'px'; im.style.height = t.h + 'px'; im.draggable = false;
+  return im;
+}
+function build(n){
+  const hasImg = n.img && n.color && n.color[3] > 0.01, isBtn = !!n.button;
+  if (hasImg || isBtn || n.text){
+    const el = document.createElement('div'); el.className = 'n'; Object.assign(el.style, css(n));
+    if (hasImg){
+      if (n.img === 'common_white') el.style.background = `rgba(${n.color.slice(0,3).map(c => Math.round(c*255)).join(',')},${n.color[3] > 0.95 ? 0.86 : n.color[3]})`;   // 98% → 86%: 유니티 선형 색공간 보정(원본 화면에서 뒤가 12~17% 밝기로 비침)
+      else if (n.sliced && SPR[n.img]){
+        const [bl, bb, br, bt] = SPR[n.img].border, k = n.s, [cl, cb, cr, ct] = sliceOf(n.img);
+        Object.assign(el.style, {borderStyle:'solid', borderImage:`url(${RES}img/${n.img}.png) ${ct} ${cr} ${cb} ${cl} fill`, borderWidth:`${bt*k}px ${br*k}px ${bb*k}px ${bl*k}px`});
+      } else el.style.backgroundImage = `url(${RES}img/${n.img}.png)`;
+      if (n.img !== 'common_white') imgOf(n.img);
+    }
+    if (n.text){ el.classList.add('txt'); const im = textImg(n.text.s, n.text.size); if (im) el.appendChild(im); n.textEl = el; }
+    if (isBtn){ el.classList.add('btn'); el.addEventListener('pointerup', e => { e.stopPropagation(); onButton(n); }); }
+    if (n.name === 'CommonFinger'){   // 칸 176x151 기준. 추출 그림은 투명 여백이 잘려 693x579 → 실제 그림 크기 그대로 배율만 맞춤(4등분하면 줄마다 7px 어긋나 들썩임)
+      const w = n.size[0]*n.s; n.fw = w; n.fh = w*151/176; el.style.backgroundPosition = `0 ${(w - n.fh)/2}px`;
+      const im = imgOf(n.img), sz = () => el.style.backgroundSize = `${im.naturalWidth*w/176}px ${im.naturalHeight*w/176}px`;
+      im.complete ? sz() : im.addEventListener('load', sz);
+    }
+    (isUnder(n) ? $('under') : $('over')).appendChild(el); n.el = el;
+  }
+  for (const k of n.kids || []) build(k);
+}
+build(L);
+function setText(n, s, size){ if (!n || !n.textEl) return; n.textEl.textContent = ''; const im = textImg(s, size || n.text.size); if (im) n.textEl.appendChild(im); n.textEl.style.visibility = im ? '' : 'hidden'; }
+const shown = n => { for (let x = n; x; x = x.parent) if (!x.on) return false; return true; };
+function refresh(){ for (const n of nodes) if (n.el) n.el.style.display = shown(n) ? '' : 'none'; }
+function fit(){
+  const k = Math.min(innerWidth/SW, innerHeight/SH), ox = (innerWidth - SW*k)/2, oy = (innerHeight - SH*k)/2;
+  for (const id of ['shot','under','over']) $(id).style.transform = `translate(${ox}px,${oy}px) scale(${k})`;
+  return {k, ox, oy};
+}
+
+// ---------- Spine ----------
+const canvas = $('gl');
+const ctx = new spine.ManagedWebGLRenderingContext(canvas, {alpha:true, stencil:true, antialias:false, premultipliedAlpha:true, preserveDrawingBuffer:false});
+const gl = ctx.gl;
+const sr = new spine.SceneRenderer(canvas, ctx, true);
+const am = new spine.AssetManager(ctx, RES + 'spine/');
+am.loadTextureAtlas('Planet.atlas'); am.loadJson('Planet.json');
+await new Promise((ok, ng) => { const t = setInterval(() => { if (am.isLoadingComplete()){ clearInterval(t); am.hasErrors() ? ng(am.getErrors()) : ok(); } }, 30); });
+const atlas = am.require('Planet.atlas');
+const sdata = new spine.SkeletonJson(new spine.AtlasAttachmentLoader(atlas)).readSkeletonData(am.require('Planet.json'));
+
+// 원형 마스크를 GPU 스텐실로: SkeletonRenderer 가 부르는 clipper 자리에 끼움(isClipping()=false 라 CPU 잘라내기는 일어나지 않음)
+class StencilClipper {
+  constructor(){
+    this.active = null; this.v = new Float32Array(256);
+    const vs = 'attribute vec2 p;uniform mat4 m;void main(){gl_Position=m*vec4(p,0.,1.);}', fs = 'precision mediump float;void main(){gl_FragColor=vec4(1.);}';
+    const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; };
+    this.prog = gl.createProgram(); gl.attachShader(this.prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(this.prog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(this.prog);
+    this.loc = gl.getAttribLocation(this.prog, 'p'); this.um = gl.getUniformLocation(this.prog, 'm'); this.buf = gl.createBuffer();
+    this.count = 0;
+  }
+  isClipping(){ return false; }
+  // 마스크 다각형을 스텐실에 홀짝(INVERT)으로 찍기: 시작 때 한 번, 끝날 때 같은 모양으로 한 번 더 찍어 그 영역만 0 으로 되돌림
+  // (화면 전체 스텐실 지우기를 마스크마다 하지 않음 — 모바일 GPU 채우기 부담)
+  stamp(){
+    sr.batcher.flush();
+    gl.colorMask(false, false, false, false); gl.stencilFunc(gl.ALWAYS, 0, 0xff); gl.stencilOp(gl.KEEP, gl.KEEP, gl.INVERT);
+    gl.useProgram(this.prog); gl.uniformMatrix4fv(this.um, false, sr.camera.projectionView.values);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+    gl.enableVertexAttribArray(this.loc); gl.vertexAttribPointer(this.loc, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, this.n >> 1);
+    gl.disableVertexAttribArray(this.loc);
+    gl.colorMask(true, true, true, true);
+    sr.batcherShader.bind();
+  }
+  clipStart(slot, clip){
+    if (this.active) return 0;
+    const n = clip.worldVerticesLength; if (this.v.length < n) this.v = new Float32Array(n);
+    clip.computeWorldVertices(slot, 0, n, this.v, 0, 2); this.n = n;
+    sr.batcher.flush();                                            // 마스크 밖 그림을 먼저 내보낸 뒤 스텐실을 켬
+    gl.enable(gl.STENCIL_TEST);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf); gl.bufferData(gl.ARRAY_BUFFER, this.v.subarray(0, n), gl.STREAM_DRAW);
+    this.stamp();
+    gl.stencilFunc(gl.EQUAL, 1, 1); gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+    this.active = clip; this.count++;
+    return 0;
+  }
+  clipEndWithSlot(slot){ if (this.active && this.active.endSlot == slot.data) this.clipEnd(); }
+  clipEnd(){ if (!this.active) return; this.stamp(); gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP); gl.disable(gl.STENCIL_TEST); this.active = null; }   // stamp 안의 flush 는 마스크 안 그림(EQUAL 상태)
+}
+sr.skeletonRenderer.clipper = new StencilClipper();
+
+// 행성 화면에서 숨기는 부품(원본 UniverseView.hideSlotPrefixes, 슬롯 이름 접두사. '@0102_fire' 처럼 '@' 로 시작하는 슬롯 이름도 있음)
+const HIDE = L.hideSlotPrefixes || [];
+const hideCache = new Map();
+function hideParts(sk){
+  let idx = hideCache.get(sk.data);
+  if (!idx){ idx = sk.data.slots.filter(s => HIDE.some(p => s.name.startsWith(p))).map(s => s.index); hideCache.set(sk.data, idx); }
+  for (const i of idx) sk.slots[i].setAttachment(null);
+}
+const spines = [];   // {node, sk, st, hide, done, clipRect}
+for (const n of nodes) if (n.spine){
+  const sk = new spine.Skeleton(sdata), st = new spine.AnimationState(new spine.AnimationStateData(sdata));
+  const sp = {node:n, sk, st, hide: n.name === 'Planet', done:false};   // 팝업·시작 연출은 아래에서 hide=false
+  n.sp = sp; spines.push(sp);
+  st.addListener({complete: e => { if (!e.loop){ sp.done = true; sp.onDone && sp.onDone(); } }});
+}
+// 팝업 Spine 은 액자(Frame) 안으로 자름(유니티 UI Mask)
+const popupSp = find(L, 'DetailPopup/Frame/Mask/Planet').sp; popupSp.hide = false; popupSp.clip = find(L, 'DetailPopup/Frame');
+const startSp = find(L, 'Planet_Start').sp; startSp.hide = false;
+function play(sp, anim, loop){ sp.done = false; sp.still = false; sp.sk.setToSetupPose(); sp.st.clearTracks(); sp.st.setAnimation(0, anim, loop); }
+for (const sp of spines) play(sp, sp.node.spine.anim, sp.node.spine.loop);
+
+// ---------- 화면 흐름(원본 관찰: 시작 연출 → 태양계 → 행성 상세 → 카드 팝업, 팝업은 애니메이션이 끝나면 저절로 닫힘) ----------
+const V = {start: find(L, 'Planet_Start'), list: find(L, 'Planet_List'), detail: find(L, 'DetailWindow'), popup: find(L, 'DetailPopup')};
+let screen = 'start', curPlanet = null, idleT = 0, guideOn = false;
+function depth(){ return screen === 'popup' ? 2 : screen === 'detail' ? 1 : 0; }
+function tell(){ try { parent !== window && parent.postMessage({uni:'depth', depth: depth()}, '*'); } catch(e){} }
+function setScreen(s){
+  screen = s; idleT = 0; guideOn = false;
+  V.start.on = true; V.list.on = s === 'list'; V.detail.on = s === 'detail'; V.popup.on = s === 'popup';
+  for (const f of nodes) if (f.name === 'FingerObject') f.on = false;
+  $('bg').style.display = $('stars').style.display = s === 'list' ? 'block' : 'none';
+  $('shot').style.display = s === 'detail' || s === 'popup' ? 'block' : 'none';
+  refresh(); tell();
+}
+function showList(){
+  setScreen('list');
+  $('over').animate([{opacity:0},{opacity:1}], {duration:500}); $('under').animate([{opacity:0},{opacity:1}], {duration:500});
+}
+function openDetail(p){
+  curPlanet = p; const i = PLANETS.indexOf(p);
+  for (const t of ['Type_1','Type_2','Type_3']) for (const k of find(V.detail, t).kids) k.on = k.name === p;
+  setText(find(V.detail, 'TitleImage/TitleText'), STR['planet_' + p] || NAME_KO[p], 70);
+  const pl = find(V.detail, `${typeGroup(p)}/${p}/Planet`).sp; play(pl, 'PlaNet0' + i, true);
+  if (screen === 'list'){ shot(V.list, true); listShot.getContext('2d').drawImage($('shot'), 0, 0); }   // 목록 사진 보관(팝업 닫을 때 되돌림)
+  setScreen('detail'); say('planet_' + p.toLowerCase());
+}
+const typeGroup = p => ['Type_1','Type_2','Type_3'].find(t => find(V.detail, t + '/' + p));
+function openCard(p, idx){
+  const i = PLANETS.indexOf(p), title = STR[`planet_characteristics_${p}_0${idx+1}`] || '';   // 원본 문구표 키
+  const tnode = find(V.popup, 'Title'); tnode.on = !!title; setText(find(V.popup, 'Title/Text (TMP)'), title, 72);
+  let animDone = false, voiceDone = false; const token = {}; popupToken = token;
+  const maybe = () => { if (animDone && voiceDone && popupToken === token && screen === 'popup') closePopup(); };
+  play(popupSp, `ss0${i}_${idx+1}ani`, false); popupSp.onDone = () => { animDone = true; maybe(); };
+  if (screen === 'detail') shot(V.detail, false);
+  setScreen('popup'); say(`planet_${p.toLowerCase()}_0${idx+1}`, () => { voiceDone = true; maybe(); });
+}
+let popupToken = null;
+const listShot = Object.assign(document.createElement('canvas'), {width: SW, height: SH});
+function closePopup(){ hush(); popupSp.onDone = null; popupToken = null; const g = $('shot').getContext('2d'); g.clearRect(0, 0, SW, SH); g.drawImage(listShot, 0, 0); setScreen('detail'); }   // 목록 사진으로 되돌림(상세는 다시 살아 움직임)
+function closeDetail(){ hush(); setScreen('list'); }
+function exitAll(){ hush(); try { parent !== window && parent.postMessage({uni:'exit'}, '*'); } catch(e){} }
+function back(){ if (screen === 'popup') closePopup(); else if (screen === 'detail') closeDetail(); else exitAll(); }
+function onButton(n){
+  startBgm();
+  sfx(n.sfx);
+  if (screen === 'list'){
+    if (n.name === 'ExitBtn') return exitAll();
+    if (PLANETS.includes(n.name)) return openDetail(n.name);
+  } else if (screen === 'detail'){
+    if (n.name === 'CloseBtn') return closeDetail();
+    const m = /^DetailBtn_(\d)$/.exec(n.name); if (m) return openCard(curPlanet, +m[1]);
+  } else if (screen === 'popup'){
+    if (n.name === 'CloseBtn') return closePopup();
+  }
+}
+addEventListener('message', e => { if (e.data && e.data.uni === 'back') back(); });
+// 점검용: __uni.skip() = 시작 연출을 끝으로 건너뜀
+window.__uni = {openDetail, openCard, back, spines, get screen(){ return screen; },
+  cap(x){ FRAME_MS = 1000/x; acc = 0; drawnT.length = 0; }, get capInfo(){ return window.__cap; }, gaps(){ const g = []; for (let i = 1; i < drawnT.length; i++) g.push(+(drawnT[i] - drawnT[i-1]).toFixed(1)); return g; },
+  skip(){ const e = startSp.st.getCurrent(0); if (e) e.trackTime = e.animationEnd - 0.01; }};
+// 안내 손가락: 5초 동안 아무것도 안 누르면 다음에 누를 곳을 가리킴(원본 guideCheckTime 5)
+addEventListener('pointerdown', () => { idleT = 0; startBgm(); if (guideOn){ guideOn = false; refresh(); } }, true);
+function guide(){
+  const host = screen === 'list' ? V.list : screen === 'detail' ? V.detail : null; if (!host) return;
+  const f = (host.kids || []).find(k => k.name === 'FingerObject'); if (!f || !f.el && !f.kids) return;
+  let target = null;
+  if (screen === 'list') target = find(V.list, 'Planets/Mars');
+  else target = find(V.detail, `${typeGroup(curPlanet)}/${curPlanet}/DetailBtn_0`);
+  const fe = f.kids[0];
+  if (target && fe.el){   // 원본 배치: 손가락 그림 가운데가 대상 가운데에서 (53, 37 아래) → 손끝이 대상을 가리킴
+    const r = css(target), cx = parseFloat(r.left) + parseFloat(r.width)/2, cy = parseFloat(r.top) + parseFloat(r.height)/2, w = fe.size[0]*fe.s, h = fe.size[1]*fe.s;
+    fe.el.style.left = (cx + 53*fe.s - w/2) + 'px'; fe.el.style.top = (cy + 37*fe.s - h/2) + 'px';
+  }
+  f.on = true; guideOn = true; refresh();
+}
+let fingerT = 0, fingerF = 0;
+function stepFinger(dt){
+  if (!guideOn) return; fingerT += dt; if (fingerT < 0.06) return; fingerT = 0; fingerF = (fingerF + 1) % 15;
+  for (const n of nodes) if (n.name === 'CommonFinger' && n.el && shown(n)) n.el.style.backgroundPosition = `${-(fingerF % 4)*n.fw}px ${(n.fw - n.fh)/2 - ((fingerF/4)|0)*n.fh}px`;
+}
+
+// ---------- 그리기 ----------
+let view = fit();
+function resize(){
+  view = fit(); const dpr = Math.min(devicePixelRatio || 1, 1.5);
+  canvas.width = Math.round(innerWidth*dpr); canvas.height = Math.round(innerHeight*dpr); gl.viewport(0, 0, canvas.width, canvas.height);
+  sr.camera.viewportWidth = innerWidth/view.k; sr.camera.viewportHeight = innerHeight/view.k; sr.camera.position.x = SW/2; sr.camera.position.y = SH/2;
+}
+addEventListener('resize', resize); resize();
+// 화면마다 그릴 Spine: 상세 창·팝업은 거의 불투명한 검은 배경이라 뒤 화면 Spine 은 그리지 않음
+const inside = (n, root) => { for (let x = n; x; x = x.parent) if (x === root) return true; return false; };
+const visibleSpines = () => screen === 'popup' ? [popupSp]
+  : screen === 'detail' ? spines.filter(sp => inside(sp.node, V.detail) && shown(sp.node))
+  : spines.filter(sp => (sp === startSp && !sp.gone) || (screen === 'list' && inside(sp.node, V.list) && shown(sp.node)));
+function drawSpines(list){
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+  sr.begin();
+  for (const sp of list){
+    if (sp.clip){
+      sr.batcher.flush(); const c = sp.clip, dpr = canvas.width/innerWidth, k = view.k;
+      gl.enable(gl.SCISSOR_TEST); gl.scissor(Math.round((view.ox + c.o[0]*k)*dpr), Math.round((innerHeight - view.oy - SH*k + c.o[1]*k)*dpr), Math.round(c.size[0]*c.s*k*dpr), Math.round(c.size[1]*c.s*k*dpr));
+      sr.drawSkeleton(sp.sk, false); sr.batcher.flush(); gl.disable(gl.SCISSOR_TEST);
+    } else sr.drawSkeleton(sp.sk, false);
+  }
+  sr.end();
+}
+// 행성을 누르는 순간의 태양계 화면(배경·궤도·행성·이름·제목)을 한 장으로 떠서 상세 창 뒤에 깐다
+// (Spine 은 캔버스, 글자·그림은 DOM 이라 층이 섞여 실시간으로 비치게 하기 어려움. 뒤 화면은 13% 밝기라 멈춰 있어도 티가 거의 안 남)
+// root 화면을 #shot 위에 덧그림(fresh=true 면 배경부터 새로). 카드 팝업 때는 목록 사진 위에 검은 막 + 상세 화면을 덧그림
+function shot(root, fresh){
+  const g = $('shot').getContext('2d');
+  if (fresh){ g.clearRect(0, 0, SW, SH); g.drawImage($('bg'), 0, 0, SW, SH); }
+  const ns = nodes.filter(n => inside(n, root) && n !== root && n.el && shown(n) && n.name !== 'CommonFinger');
+  if (!fresh && root.img === 'common_white'){ g.fillStyle = 'rgba(0,0,0,0.86)'; g.fillRect(0, 0, SW, SH); }
+  const draw = n => {
+    const x = n.o[0], y = SH - n.o[1] - n.size[1]*n.s, w = n.size[0]*n.s, h = n.size[1]*n.s;
+    if (n.img && n.img !== 'common_white' && n.color[3] > 0.01){ const im = imgOf(n.img); if (im.complete) n.sliced ? nine(g, im, SPR[n.img].border, x, y, w, h, n.s, sliceOf(n.img)) : g.drawImage(im, x, y, w, h); }
+    const t = n.textEl && n.textEl.querySelector('img');
+    if (t){ const tw = parseFloat(t.style.width), th = parseFloat(t.style.height); g.drawImage(t, x + (w - tw)/2, y + (h - th)/2, tw, th); }
+  };
+  ns.filter(isUnder).forEach(draw);
+  drawSpines(spines.filter(sp => inside(sp.node, root) && shown(sp.node)));
+  const dpr = canvas.width/innerWidth; g.drawImage(canvas, view.ox*dpr, view.oy*dpr, SW*view.k*dpr, SH*view.k*dpr, 0, 0, SW, SH);
+  ns.filter(n => !isUnder(n)).forEach(draw);
+}
+let last = performance.now(), fN = 0, fT = last, work = 0;
+// 45fps 상한(섬 3D 지구와 같음): H092 는 90Hz 라 60 이면 간격이 11·22ms 로 번갈아 끊겨 보임(편차 5.5ms), 45 는 22ms 로 고름(편차 2ms)
+let FRAME_MS = 1000/45, acc = 0, prevNow = last; const drawnT = [];   // drawnT: 그린 시각 기록(점검용)
+// 화면 갱신 속도를 재서 상한을 고름: 60 이하이면서 갱신 속도를 나눠떨어뜨리는 가장 큰 값(90Hz→45, 60Hz→60, 120Hz→60, 144Hz→48)
+// — 나눠떨어지지 않으면 프레임 간격이 번갈아 달라져 끊겨 보임(H092 90Hz 에서 60 상한: 11·22ms 반반)
+let refreshHz = 0;
+(function probe(){
+  const ts = []; const f = t => { ts.push(t); if (ts.length < 40) return requestAnimationFrame(f);
+    const g = []; for (let i = 1; i < ts.length; i++) g.push(ts[i] - ts[i-1]); g.sort((x, y) => x - y);
+    refreshHz = Math.round(1000 / g[g.length >> 1]); const cap = refreshHz / Math.ceil(refreshHz / 60);
+    FRAME_MS = 1000 / cap; acc = 0; window.__cap = {refreshHz, cap: +cap.toFixed(1)}; };
+  requestAnimationFrame(f);
+})();
+function frame(now){
+  requestAnimationFrame(frame);
+  acc += now - prevNow; prevNow = now;
+  if (acc < FRAME_MS*0.75) return;
+  acc = Math.max(-FRAME_MS*0.5, Math.min(acc - FRAME_MS, FRAME_MS*0.5));
+  const dt = Math.min(0.05, (now - last)/1000); last = now; drawnT.push(now); if (drawnT.length > 400) drawnT.shift();
+  const t0 = performance.now();
+  const list = visibleSpines();
+  for (const sp of list){
+    if (sp.still) continue;
+    sp.st.update(dt); sp.st.apply(sp.sk); if (sp.hide) hideParts(sp.sk);
+    const n = sp.node; sp.sk.x = n.pivW[0]; sp.sk.y = n.pivW[1]; sp.sk.scaleX = sp.sk.scaleY = n.s;
+    sp.sk.updateWorldTransform();
+  }
+  drawSpines(list);
+  work += performance.now() - t0;
+  idleT += dt; if (!guideOn && idleT > 5 && (screen === 'list' || screen === 'detail')) guide();
+  stepFinger(dt);
+  fN++; if (now - fT > 1000){ $('fps').textContent = Math.round(fN*1000/(now - fT)) + ' fps · ' + (work/fN).toFixed(1) + ' ms'; window.__stats = {fps: fN*1000/(now - fT), ms: work/fN, spines: list.length}; fN = 0; work = 0; fT = now; }
+}
+// 목록 배경: 원본은 유니티 장면의 반짝이 입자(sparkle3)와 남색 성운 배경인데 묶음에 효과 설정이 없어,
+// 원본 화면에서 잰 색(바탕 약 rgb(8,15,46), 얼룩 1,5,38 ~ 21,26,52)으로 한 번 그려 깔고 작은 별은 CSS 로 깜빡이게 함
+function makeBg(){
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const c = document.createElement('canvas'); c.width = SW; c.height = SH; const g = c.getContext('2d');
+  g.fillStyle = 'rgb(8,15,46)'; g.fillRect(0, 0, SW, SH);
+  for (let i = 0; i < 26; i++){                                     // 성운 얼룩(밝고 어두운 큰 원)
+    const x = rnd()*SW, y = rnd()*SH, r = 220 + rnd()*420, lite = rnd() < 0.6;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, lite ? 'rgba(30,36,72,0.55)' : 'rgba(0,3,30,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(x - r, y - r, 2*r, 2*r);
+  }
+  for (let i = 0; i < 160; i++){                                    // 고정된 작은 별
+    const x = rnd()*SW, y = rnd()*SH, r = rnd() < 0.85 ? 0.9 + rnd()*0.8 : 1.6 + rnd();
+    g.fillStyle = `rgba(255,255,255,${0.25 + rnd()*0.6})`; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  const bg = $('bg'); bg.src = c.toDataURL('image/jpeg', 0.9);
+  for (let i = 0; i < 36; i++){                                     // 깜빡이는 별
+    const s = document.createElement('div'), r = 2 + rnd()*3;
+    Object.assign(s.style, {left: rnd()*SW + 'px', top: rnd()*SH + 'px', width: r + 'px', height: r + 'px', animationDelay: (-rnd()*3).toFixed(2) + 's', animationDuration: (1.8 + rnd()*2.4).toFixed(2) + 's'});
+    s.className = 'twinkle'; $('stars').appendChild(s);
+  }
+}
+makeBg();
+startSp.onDone = () => { if (screen === 'start'){ startSp.gone = true; showList(); } };
+setScreen('start'); say('planet_travel');
+$('load').remove();
+requestAnimationFrame(frame);
+window.__ready = true;
+})().catch(e => { document.getElementById('load').textContent = '불러오기 실패: ' + e; console.error(e); });
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-# 샘플 2-2 준비: 제미나이 회전 그림을 같은 크기·위치로 맞추고 깊이 지도를 만든다.
+# 샘플 2-1 준비: 제미나이 회전 그림을 같은 크기·위치로 맞추고 깊이 지도를 만든다.
 # 사용: <transformers 가 있는 파이썬> prep_views.py <views 폴더> <출력 폴더> 0 30 90 ...
 import sys, os, numpy as np, torch
 from PIL import Image, ImageFilter

@@ -8,7 +8,7 @@ three = open(os.path.join(here, '..', 'tools', 'three_inline.txt'), encoding='ut
 TABS = ('#tabs{position:fixed;top:14px;right:16px;display:flex;gap:0;border-radius:24px;overflow:hidden;box-shadow:0 3px 10px #0007;z-index:2}'
         '#tabs a{padding:10px 16px;font-size:15px;font-weight:700;color:#dfe8ff;background:#13285acc;text-decoration:none}'
         '#tabs a.on{color:#173064;background:linear-gradient(#fff,#dfe8ff)}')
-PAGES = [('index.html', '샘플 1 · 코드 3D'), ('sample1_1.html', '샘플 1-1 · 로우폴리'), ('sample1_2.html', '샘플 1-2 · 원화 맞춤'), ('sample2.html', '샘플 2 · 원화 기울이기'), ('sample2_2.html', '샘플 2-2 · 회전 그림'), ('sample3.html', '샘플 3 · 3D 지구')]
+PAGES = [('index.html', '샘플 1 · 코드 3D'), ('sample1_1.html', '샘플 1-1 · 로우폴리'), ('sample1_2.html', '샘플 1-2 · 원화 맞춤'), ('sample2.html', '샘플 2 · 원화 기울이기'), ('sample2_2.html', '샘플 2-1 · 회전 그림'), ('sample3.html', '샘플 3 · 3D 지구')]
 VIEWS22 = [0, 30, 90, 120, 180, 210, 270, 300, 330]      # src/views22 (prep_views.py 결과). 60·150·240 은 제미나이 결과가 어긋나 제외
 def links(cur): return ''.join('<a%s href="%s">%s</a>' % (' class="on"' if f == cur else '', f, t) for f, t in PAGES)
 src = lambda f: os.path.join(here, 'src', f)

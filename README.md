@@ -13,8 +13,9 @@
 | 샘플 1-1 · 로우폴리 | Blender 로 만든 로우폴리 섬 |
 | **샘플 1-2 · 원화 맞춤** | 원화에 맞춘 성·돔·캠프·나무·폭포·꽃, 폭포 켜기/끄기, **🧭 탐험**(페로 캐릭터를 터치패드로 움직임) |
 | 샘플 2 · 원화 기울이기 | 원화 + 깊이 지도로 살짝 기울이기 |
-| 샘플 2-2 · 회전 그림 | 여러 방향 그림을 돌려 보기 |
-| 샘플 3 · 3D 지구 | 홈 배너 로띠(`home_hero_earth`)의 그림 질감을 살린 3D 지구. 대륙 4개와 섬, 바다 물결·물결선, 3D 오브젝트(나무 4종·집·풍차·산·무지개·등대·돛단배·이글루·펭귄), 구름. 한 손가락으로 굴리기, 두 손가락으로 돌리기·확대, 왼쪽에서 FPS 상한(90/60/45, 기본 45) 선택 |
+| 샘플 2-1 · 회전 그림 | 여러 방향 그림을 돌려 보기 |
+| 샘플 3 · 3D 지구 | 홈 배너 로띠(`home_hero_earth`)의 그림 질감을 살린 3D 지구. 대륙 4개와 섬, 바다 물결·물결선, 3D 오브젝트(나무 4종·집·풍차·산·무지개·등대·돛단배·이글루·펭귄), 구름. 한 손가락으로 굴리기, 두 손가락으로 돌리기·확대. 프레임 상한은 화면 주사율에 맞춰 자동(90Hz→45, 60Hz→60, 120Hz→60). 확대할수록 땅 톤을 낮추고 잔디 결을 섞음. **우주 천문대**: 산맥 앞 천문대(AR 구역 그림 모양) 말풍선 → 확대 보기 → 천문대를 누르면 우주 천문대 콘텐츠 |
+| 우주 천문대 (`web/universe`) | 위티 앱 우주 화면(유니티)을 웹으로 다시 만든 1단계 시제품: 시작 연출 → 태양계 → 행성 상세(카드) → 카드 팝업. Spine(spine-webgl 4.1)으로 원본 애니메이션을 그대로 재생하고 원형 마스크는 GPU 스텐실로 처리(원본 웹 빌드 H092 24fps → 45fps 상한에서 여유) |
 
 뒤로가기: 3D → 지도 → 앱 종료.
 
@@ -34,6 +35,9 @@ web/
                       3D 오브젝트 배치(이 순서로 실행. 뒤 단계가 trees.json의 겹치는 나무를 정리):
                       place_trees.py -> place_buildings.py -> place_landmarks.py -> place_coast.py -> place_polar.py
                       그림 물체(로띠 원본 잘라낸 2D 카드): props.py, props2.py, place.py
+  universe/           우주 천문대: index.html(화면), lib/(spine-webgl 4.1.56 + 라이선스), res/(추출 리소스)
+    tools/            extract_universe.py: 원본 웹 빌드의 공개 Addressables 묶음에서 Spine·그림·배치·문구표·글자 그림·소리를 꺼냄
+                      (UnityPy·brotli·numpy·pillow 필요: <파이썬> -I extract_universe.py <캐시 폴더> res)
 build.sh              생성 + 빌드 + (선택) 설치
 ```
 
@@ -72,3 +76,5 @@ sh build.sh install
 - 샘플 1-2 페이지의 점검용 함수: `__view(방위각, 고도, 거리)`, `__show(폭포, 수면)`, `__hero()`, `__pad(x, y)`.
 - WebGL 화면은 CDP 스크린샷에 비어 나오므로 `adb exec-out screencap -p` 로 찍습니다.
 - 재설치는 `adb install -r` 로만 합니다(강제 종료하면 웹뷰가 흰 화면이 될 수 있음).
+- 샘플 3 점검용: `__look(위도, 경도, 거리, 위로 비킴, 둘레°)`, `__cap`(자동 프레임 상한). 천문대 근접: `__cam(위도, 경도, 방위°, 올려본 각°, 거리)`.
+- 우주 천문대는 앱에서 `https://appassets.androidplatform.net/assets/universe/index.html`(WebViewAssetLoader)로 열립니다. 점검용 `__uni`(openDetail, openCard, skip, cap, gaps).
