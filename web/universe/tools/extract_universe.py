@@ -10,6 +10,10 @@ CACHE, RES = sys.argv[1], sys.argv[2]
 CATALOG = 'https://koominchul.github.io/webgl_test/build_universeWeb/StreamingAssets/aa/catalog.json'
 for d in (CACHE, RES, RES + '/img', RES + '/text', RES + '/snd', RES + '/spine'): os.makedirs(d, exist_ok=True)
 
+# 그림은 WebP 로 저장(PNG 대비 약 1/5): 색 품질 90, 알파는 무손실, exact=True 로 투명 픽셀 아래 색도 보존
+# (Spine 아틀라스가 일반 알파라 투명 아래 색이 지워지면 선형 필터에서 가장자리 테두리가 생김)
+def save_webp(im, path): im.save(path, 'WEBP', quality=90, alpha_quality=100, method=6, exact=True)
+
 def fetch(url, path):
     if not os.path.exists(path):
         data = urllib.request.urlopen(urllib.parse.quote(url, safe=':/')).read()
@@ -28,10 +32,10 @@ for o in env.objects:
     if o.type.name == 'TextAsset':
         t = o.read(); b = t.m_Script.encode('utf-8', 'surrogateescape') if isinstance(t.m_Script, str) else bytes(t.m_Script)
         if t.m_Name == 'Planet': open(RES + '/spine/Planet.json', 'wb').write(b)
-        if t.m_Name == 'Planet.atlas': open(RES + '/spine/Planet.atlas', 'wb').write(b)
+        if t.m_Name == 'Planet.atlas': open(RES + '/spine/Planet.atlas', 'wb').write(b.replace(b'.png', b'.webp'))   # 아틀라스 페이지 이름도 WebP 로
     if o.type.name == 'Texture2D':
         t = o.read()
-        if t.m_Name in ('Planet', 'Planet_2'): t.image.save(RES + f'/spine/{t.m_Name}.png')
+        if t.m_Name in ('Planet', 'Planet_2'): save_webp(t.image, RES + f'/spine/{t.m_Name}.webp')
 
 # 2) 화면 배치(RectTransform 계층)와 UI 그림(Sprite, 9분할 테두리 포함)
 sprites = {}
@@ -39,7 +43,7 @@ def sprite_name(ref):
     if not ref or ref.path_id == 0: return None
     s = ref.read(); n = s.m_Name
     if n not in sprites:
-        s.image.save(RES + f'/img/{n}.png'); b = s.m_Border
+        save_webp(s.image, RES + f'/img/{n}.webp'); b = s.m_Border
         sprites[n] = {'w': round(s.m_Rect.width), 'h': round(s.m_Rect.height), 'border': [round(b.x), round(b.y), round(b.z), round(b.w)]}  # 왼·아래·오른·위
     return n
 v2 = lambda v: [round(v.x, 2), round(v.y, 2)]
@@ -132,8 +136,8 @@ for s, size, color, spacing in sorted(texts):
         ys, xs = slice(max(0, py), min(H, py + th)), slice(max(0, px), min(W, px + tw))
         out[ys, xs] = np.maximum(out[ys, xs], alpha[ys.start - py:ys.stop - py, xs.start - px:xs.stop - px])
     rgba = np.zeros((H, W, 4), np.uint8); rgba[..., :3] = (np.array(color[:3]) * 255).astype(np.uint8); rgba[..., 3] = (out * color[3] * 255).astype(np.uint8)
-    key = f'{s}|{size:g}'; fn = hashlib.md5(f'{key}|{color}|{spacing}'.encode()).hexdigest()[:12] + '.png'   # 내용 기반 이름(웹뷰 캐시가 옛 그림을 쓰지 않게)
-    Image.fromarray(rgba, 'RGBA').save(RES + '/text/' + fn)
+    key = f'{s}|{size:g}'; fn = hashlib.md5(f'{key}|{color}|{spacing}'.encode()).hexdigest()[:12] + '.webp'   # 내용 기반 이름(웹뷰 캐시가 옛 그림을 쓰지 않게)
+    save_webp(Image.fromarray(rgba, 'RGBA'), RES + '/text/' + fn)
     textmeta[key] = {'f': fn, 'w': W / k, 'h': H / k}
 json.dump(textmeta, open(RES + '/text/text.json', 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
 

@@ -1,4 +1,4 @@
-Planet.png
+Planet.webp
 size:2048,2048
 filter:Linear,Linear
 0102_0102_ice
@@ -211,7 +211,7 @@ s/earths
 bounds:2,1198,500,501
 offsets:3,4,506,508
 
-Planet_2.png
+Planet_2.webp
 size:2048,1024
 filter:Linear,Linear
 0102_Fireice

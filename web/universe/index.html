@@ -88,7 +88,7 @@ function isUnder(n){
   return false;
 }
 const IMG = {};
-const imgOf = name => IMG[name] || (IMG[name] = Object.assign(new Image(), {src: RES + 'img/' + name + '.png'}));
+const imgOf = name => IMG[name] || (IMG[name] = Object.assign(new Image(), {src: RES + 'img/' + name + '.webp'}));
 // 9분할 원본 자르기 값: 테두리만으로 폭(높이)이 꽉 차 가운데 칸이 0 이면, 유니티처럼 경계 한 줄(1px)을 늘여 채우도록 한쪽을 1 줄임
 function sliceOf(name){ const S = SPR[name], [bl, bb, br, bt] = S.border; return [bl + br >= S.w ? bl - 1 : bl, bb + bt >= S.h ? bb - 1 : bb, br, bt]; }
 function nine(g, im, [bl, bb, br, bt], x, y, w, h, k, cut){   // 9분할 그림(테두리 폭은 원본 픽셀 × 배율, cut = 원본 자르기 값)
@@ -112,8 +112,8 @@ function build(n){
       if (n.img === 'common_white') el.style.background = `rgba(${n.color.slice(0,3).map(c => Math.round(c*255)).join(',')},${n.color[3] > 0.95 ? 0.86 : n.color[3]})`;   // 98% → 86%: 유니티 선형 색공간 보정(원본 화면에서 뒤가 12~17% 밝기로 비침)
       else if (n.sliced && SPR[n.img]){
         const [bl, bb, br, bt] = SPR[n.img].border, k = n.s, [cl, cb, cr, ct] = sliceOf(n.img);
-        Object.assign(el.style, {borderStyle:'solid', borderImage:`url(${RES}img/${n.img}.png) ${ct} ${cr} ${cb} ${cl} fill`, borderWidth:`${bt*k}px ${br*k}px ${bb*k}px ${bl*k}px`});
-      } else el.style.backgroundImage = `url(${RES}img/${n.img}.png)`;
+        Object.assign(el.style, {borderStyle:'solid', borderImage:`url(${RES}img/${n.img}.webp) ${ct} ${cr} ${cb} ${cl} fill`, borderWidth:`${bt*k}px ${br*k}px ${bb*k}px ${bl*k}px`});
+      } else el.style.backgroundImage = `url(${RES}img/${n.img}.webp)`;
       if (n.img !== 'common_white') imgOf(n.img);
     }
     if (n.text){ el.classList.add('txt'); const im = textImg(n.text.s, n.text.size); if (im) el.appendChild(im); n.textEl = el; }
