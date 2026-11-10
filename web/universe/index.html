@@ -305,6 +305,16 @@ const inside = (n, root) => { for (let x = n; x; x = x.parent) if (x === root) r
 const visibleSpines = () => screen === 'popup' ? [popupSp]
   : screen === 'detail' ? spines.filter(sp => inside(sp.node, V.detail) && shown(sp.node))
   : spines.filter(sp => (sp === startSp && !sp.gone) || (screen === 'list' && inside(sp.node, V.list) && shown(sp.node)));
+// 시작 연출 배경(ss00BG: 단색 판·그라데이션·별, 1920x1200 크기)을 화면 비율이 다를 때 화면 전체로 넓힘
+// (원본은 기준 해상도 화면이라 안 보였지만, 20:9 폰처럼 옆으로 긴 화면이면 좌우가 검게 비어 보였음)
+// 가로세로 같은 배율로 키워 별이 찌그러지지 않게 함. 이 뼈대는 원래 화면 가운데(960, 600)에 있어 위치는 그대로 둠
+// 크기는 애니메이션이 건드리지 않아 매 프레임 되돌려지지 않음 → 곱하지 말고 기본값 × 배율로 정해 넣음
+function coverStartBg(sk){
+  const b = sk.findBone('ss00BG'); if (!b) return;
+  const over = Math.max(innerWidth/view.k/SW, innerHeight/view.k/SH);   // 화면이 기준 비율보다 넓거나 긴 정도
+  const f = over > 1.001 ? over * 1.02 : 1;                             // 1.02: 가장자리 이음새 여유. 기준 비율 화면은 원본 그대로
+  b.scaleX = b.data.scaleX * f; b.scaleY = b.data.scaleY * f;
+}
 function drawSpines(list){
   gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
   sr.begin();
@@ -361,6 +371,7 @@ function frame(now){
     if (sp.still) continue;
     sp.st.update(dt); sp.st.apply(sp.sk); if (sp.hide) hideParts(sp.sk);
     const n = sp.node; sp.sk.x = n.pivW[0]; sp.sk.y = n.pivW[1]; sp.sk.scaleX = sp.sk.scaleY = n.s;
+    if (sp === startSp) coverStartBg(sp.sk);
     sp.sk.updateWorldTransform();
   }
   drawSpines(list);
