@@ -9,9 +9,7 @@
 | 화면 | 내용 |
 |---|---|
 | 지도 (`web/map/v10.html`) | 낮/밤 전환, 영역 확대, 영역 효과, 캐릭터. 가운데 섬 안에 "🧪 3D 샘플" 버튼 |
-| 샘플 1 · 코드 3D | three.js 코드로 만든 섬 |
-| 샘플 1-1 · 로우폴리 | Blender 로 만든 로우폴리 섬 |
-| **샘플 1-2 · 원화 맞춤** | 원화에 맞춘 성·돔·캠프·나무·폭포·꽃, 폭포 켜기/끄기, **🧭 탐험**(페로 캐릭터를 터치패드로 움직임) |
+| **샘플 1 · 원화 맞춤** | 원화에 맞춘 성·돔·캠프·나무·폭포·꽃, 폭포 켜기/끄기, **🧭 탐험**(페로 캐릭터를 터치패드로 움직임) |
 | 샘플 2 · 원화 기울이기 | 원화 + 깊이 지도로 살짝 기울이기 |
 | 샘플 2-1 · 회전 그림 | 여러 방향 그림을 돌려 보기 |
 | 샘플 3 · 3D 지구 | 홈 배너 로띠(`home_hero_earth`)의 그림 질감을 살린 3D 지구. 대륙 4개와 섬, 바다 물결·물결선, 3D 오브젝트(나무 4종·집·풍차·산·무지개·등대·돛단배·이글루·펭귄), 구름. 한 손가락으로 굴리기, 두 손가락으로 돌리기·확대. 프레임 상한은 화면 주사율에 맞춰 자동(90Hz→45, 60Hz→60, 120Hz→60). 확대할수록 땅 톤을 낮추고 잔디 결을 섞음. **우주 천문대**: 산맥 앞 천문대(AR 구역 그림 모양) 말풍선 → 확대 보기 → 천문대를 누르면 우주 천문대 콘텐츠 |
@@ -28,8 +26,8 @@ web/
   tools/              지도 생성(make_v10.py, masks_v10.py, cast_v9.py, v10_template.html), three.js(three_inline.txt)
   character/          지도 캐릭터 그림(1_generated_2D), 페로 원화(0_origin)
   island3d/           3D 샘플 템플릿(island*_template.html), 생성 스크립트(make_island3d.py)
-    blender/          샘플 1-1·1-2 모델 생성(build_island11.py, build_island12.py)
-    src/              모델 결과(island1x.bin/json), 원화·깊이 지도, 회전 그림(views22)
+    blender/          샘플 1 모델 생성(build_island1.py)
+    src/              모델 결과(island1.bin/json), 원화·깊이 지도, 회전 그림(views22)
     globe3/           샘플 3 생성 스크립트, 결과는 src/globe3/
                       지형 텍스처: build_tex3.py(현재 대륙·섬 설계. build_tex.py·build_tex2.py는 이전 방식)
                       3D 오브젝트 배치(이 순서로 실행. 뒤 단계가 trees.json의 겹치는 나무를 정리):
@@ -57,23 +55,23 @@ sh build.sh map        # 지도 v10.html 도 원본에서 다시 생성
 
 APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 
-### 3D 모델을 고쳤을 때 (샘플 1-2)
+### 3D 모델을 고쳤을 때 (샘플 1)
 
 Blender 5.2 로 모델을 다시 굽고 `build.sh` 를 실행합니다.
 
 ```sh
-blender -b --factory-startup --python web/island3d/blender/build_island12.py -- web/island3d/src
+blender -b --factory-startup --python web/island3d/blender/build_island1.py -- web/island3d/src
 sh build.sh install
 ```
 
 - 실행할 때마다 `겹침 검사:` 결과가 출력됩니다(울타리·디딤돌·바위·텐트·랜턴·꽃 등이 계단·건물·서로와 겹치는지).
 - 미리보기만 빠르게: `PREVIEW=미리보기.png PV_T=dome|camp|stairs|stairtop PV_AZ=0 PV_EL=0.4 PV_D=10` 또는 `PV_XYZ=x,y,z` 를 주고 실행하면 AO 굽기 없이 그 부분만 렌더하고 끝납니다.
-- 탐험 모드의 이동 가능 지역(0.2 간격 격자)도 이 스크립트가 함께 계산해 `island12.json` 의 `walk` 로 내보냅니다.
+- 탐험 모드의 이동 가능 지역(0.2 간격 격자)도 이 스크립트가 함께 계산해 `island1.json` 의 `walk` 로 내보냅니다.
 
 ## 점검 팁
 
 - 웹뷰 디버깅이 켜져 있어 `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` 로 페이지에 붙을 수 있습니다.
-- 샘플 1-2 페이지의 점검용 함수: `__view(방위각, 고도, 거리)`, `__show(폭포, 수면)`, `__hero()`, `__pad(x, y)`.
+- 샘플 1 페이지의 점검용 함수: `__view(방위각, 고도, 거리)`, `__show(폭포, 수면)`, `__hero()`, `__pad(x, y)`.
 - WebGL 화면은 CDP 스크린샷에 비어 나오므로 `adb exec-out screencap -p` 로 찍습니다.
 - 재설치는 `adb install -r` 로만 합니다(강제 종료하면 웹뷰가 흰 화면이 될 수 있음).
 - 샘플 3 점검용: `__look(위도, 경도, 거리, 위로 비킴, 둘레°)`, `__cap`(자동 프레임 상한). 천문대 근접: `__cam(위도, 경도, 방위°, 올려본 각°, 거리)`.

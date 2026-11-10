@@ -1,5 +1,5 @@
-# 샘플 1-2: 샘플 1-1 을 바탕으로 원화(concept_2/v10/v10_v3_center.png)에 가깝게 오브젝트별로 다듬는 판. 결과 src/island12.*
-# 사용: blender -b --factory-startup --python build_island11.py -- <출력폴더>
+# 샘플 1: 원화(concept_2/v10/v10_v3_center.png)에 가깝게 오브젝트별로 다듬은 로우폴리 섬. 결과 src/island1.*
+# 사용: blender -b --factory-startup --python build_island1.py -- <출력폴더>
 # 좌표는 three.js 와 같은 Y-up 으로 바로 만든다(AO 는 위아래 축과 무관).
 import bpy, bmesh, math, random, json, sys, os
 import numpy as np
@@ -373,7 +373,7 @@ for v in [cb] + [v for row in gro for v in row]:              # 절벽 색 꼭�
 
 random.setstate(_RS1)                                       # 절벽 고리 수가 바뀌어도 이후 배치는 원래 판과 같게
 for _ in range(11008): R()
-# ---------- 성 (샘플 1-2: 원화 성 구성에 맞춤) ----------
+# ---------- 성 (원화 성 구성에 맞춤) ----------
 # 원화: 앞으로 튀어나온 문루(박공 + 금색 아치 창 + 금빛 아치문)와 양옆 작은 탑, 좌우 파란 지붕 날개와 모서리 탑,
 # 가운데 둥근 본탑(금색 띠 + 금색 왕관 톱니 + 높은 첨탑 + 깃발), 그 주위로 가늘고 높은 뾰족탑들. 지붕은 아래가 퍼진 비늘 원뿔.
 CO = (PL[0], PLY, PL[1] - 0.6)
@@ -511,7 +511,7 @@ tower(1.75, -0.6, 0.62, 3.3, 1.75, [(0.4, 2, False), (0.72, 3, True)], flag=True
 tower(-0.5, -1.25, 0.24, 5.0, 1.35, [(0.8, 1, True)], seg=10)               # 본탑 뒤 가는 탑 두 개
 tower(0.55, -1.2, 0.24, 4.6, 1.3, [(0.8, 1, True)], seg=10)
 
-# ---------- 돌계단 (샘플 1-2: 원화처럼 둥글넓적한 판석이 조금씩 비뚤게 쌓이고 양옆은 바위) ----------
+# ---------- 돌계단 (원화처럼 둥글넓적한 판석이 조금씩 비뚤게 쌓이고 양옆은 바위) ----------
 for i in range(6):
     top = PLY - i * 0.27 + 0.02; Hh = top + 0.35; zc = zEdge - 0.35 + i * 0.42
     box('lit', PL[0], top - Hh / 2 - 0.08, zc - 0.04, 1.3, Hh - 0.12, 0.46, 0x9c8a6c, bevel=0.04)          # 받침(그늘진 몸통)
@@ -559,7 +559,7 @@ for a0, a1 in ((PI / 2 + 0.22, PI / 2 + 0.85), (PI / 2 - 0.22, PI / 2 - 0.85)):
         ptsF.append((PL[0] + math.cos(a) * r, PL[1] + math.sin(a) * r))
     fence([q for q in ptsF if abs(q[0] - PL[0]) >= 1.4], PLY)            # 계단 돌 벽과 겹치지 않게
 
-# ---------- 돔 천문대 (샘플 1-2: 원화 구성에 맞춤) ----------
+# ---------- 돔 천문대 (원화 구성에 맞춤) ----------
 # 원화: 높은 보라 원통 몸통(은분홍 세로 기둥 + 청록 전구 줄) → 두툼한 연보라 처마 → 보라에서 청록으로 바뀌는 돔(은 갈빗살 + 별 점)
 #       → 꼭대기 은 꼭지 + 깃발. 입구는 튀어나온 아치 문틀 + 반원통 청록 유리 차양 + 금빛 안쪽 + 자홍 커튼 + 둥근 계단.
 DOME = (DOME_C[0], H(*DOME_C), DOME_C[1])
@@ -824,7 +824,7 @@ def pine(x, y, z, s):
     TIERS[len(TIERS)] = tiers
     return tiers
 TREE_TIERS = [pine(*t) for t in TREES]
-# 둥근 활엽수 (샘플 1-2: 원화처럼 굵고 비틀린 줄기, 퍼진 뿌리, 갈라지는 가지, 뭉게구름 잎 덩어리)
+# 둥근 활엽수 (원화처럼 굵고 비틀린 줄기, 퍼진 뿌리, 갈라지는 가지, 뭉게구름 잎 덩어리)
 OAK = (OAK_C[0], H(*OAK_C), OAK_C[1])
 BARK, BARKD = 0x6e4526, 0x4f301a
 lathe('tree', (OAK[0], OAK[1] - 0.25, OAK[2]), [(0.55, 0), (0.42, 0.22), (0.3, 0.55), (0.26, 1.0), (0.3, 1.35), (0.36, 1.55)], 9,
@@ -896,7 +896,7 @@ for (y0, amp, off) in ((OAK[1] + 2.1, 0.22, 0.0), (OAK[1] + 2.7, 0.18, 1.1), (OA
         rr = oak_surface(a, y)
         if rr > 0.3: OAK_BULBS.append([OAK[0] + math.cos(a) * (rr + 0.04), y, OAK[2] + math.sin(a) * (rr + 0.04)])
 
-# ---------- 돌길 (샘플 1-2: 개수를 줄이고 좌우 지그재그로 고르게, 겹치지 않게) ----------
+# ---------- 돌길 (개수를 줄이고 좌우 지그재그로 고르게, 겹치지 않게) ----------
 PATH_STONES = []
 PR = random.Random(9090)                                     # 돌길 배치 전용 난수
 STONE_LINES = [PATHS[2], PATHS[0], [FORK] + PATHS[1], PATHS[3]]   # 계단→갈림길, 갈림길→돔, 갈림길→캠프(갈림길에서 바로 이어지게), 물가 곡선→선착장
@@ -1215,6 +1215,6 @@ meta.update({'walk': WALK, 'spawn': [round(SPAWN[0], 3), round(SPAWN[1], 3)], 't
              'camp': [round(v, 3) for v in CAMP], 'dome': [round(v, 3) for v in DOME], 'castle': [round(v, 3) for v in CO],
              'rimZ': rimZ, 'wfx': WFX, 'isl': ISLR, 'domeRot': DR, 'pond': [POND[0], POND[1], PONDB, PONDS], 'ply': PLY, 'zEdge': zEdge})
 os.makedirs(OUT, exist_ok=True)
-open(os.path.join(OUT, 'island12.bin'), 'wb').write(bytes(blob))
-json.dump(meta, open(os.path.join(OUT, 'island12.json'), 'w'))
+open(os.path.join(OUT, 'island1.bin'), 'wb').write(bytes(blob))
+json.dump(meta, open(os.path.join(OUT, 'island1.json'), 'w'))
 print('완료', len(blob), '바이트')
