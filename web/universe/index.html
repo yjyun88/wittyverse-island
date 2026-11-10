@@ -226,7 +226,7 @@ function setScreen(s){
   refresh(); tell();
 }
 function showList(){
-  setScreen('list');
+  setScreen('list'); startBgm(); say('planet_solarsystem');   // 태양계 들어올 때 안내 음성(시작 연출의 planet_travel 다음)
   $('over').animate([{opacity:0},{opacity:1}], {duration:500}); $('under').animate([{opacity:0},{opacity:1}], {duration:500});
 }
 function openDetail(p){
@@ -405,7 +405,7 @@ function makeBg(){
 }
 makeBg();
 startSp.onDone = () => { if (screen === 'start'){ startSp.gone = true; showList(); } };
-setScreen('start'); say('planet_travel');
+setScreen('start'); say('planet_travel'); startBgm();   // 배경음: 자동 재생이 막힌 환경(일반 브라우저)이면 첫 터치 때 다시 시도
 $('load').remove();
 requestAnimationFrame(frame);
 window.__ready = true;
