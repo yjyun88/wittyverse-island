@@ -14,9 +14,12 @@ if [ "$1" = "map" ]; then
 fi
 cp "$ROOT/web/map/v10.html" "$ASSETS/index.html"                 # 지도 = 앱 첫 화면
 python -I "$ROOT/web/island3d/make_island3d.py" 1.5             # 3D 샘플 → assets/island3d/
-# 우주 천문대(샘플 3 천문대 콘텐츠) → assets/universe/ (리소스 res/ 는 web/universe/tools/extract_universe.py 로 만듦)
+# 우주 천문대(샘플 3 천문대 콘텐츠) → assets/universe/
+# 원본은 이 프로젝트 밖 ../contents/universe (2026-11-19 옮김, git 에 없음). 리소스 res/ 는 그 안 tools/extract_universe.py 로 만듦
+UNI="$ROOT/../contents/universe"
+[ -f "$UNI/index.html" ] || { echo "우주 천문대 원본이 없습니다: $UNI"; exit 1; }
 rm -rf "$ASSETS/universe" && mkdir -p "$ASSETS/universe"
-cp -r "$ROOT/web/universe/index.html" "$ROOT/web/universe/lib" "$ROOT/web/universe/res" "$ASSETS/universe/"
+cp -r "$UNI/index.html" "$UNI/lib" "$UNI/res" "$ASSETS/universe/"
 
 cd "$ROOT/android"
 if command -v cmd.exe >/dev/null 2>&1; then ./gradlew.bat :app:assembleDebug -q; else ./gradlew :app:assembleDebug -q; fi
