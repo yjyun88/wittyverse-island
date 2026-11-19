@@ -37,5 +37,5 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
-    implementation("androidx.webkit:webkit:1.12.1")   // WebViewAssetLoader: 앱 자산을 https 주소로 제공(우주 천문대 콘텐츠의 WebGL 텍스처·fetch 용)
+    implementation("androidx.webkit:webkit:1.12.1")   // WebViewAssetLoader: 앱 자산을 https 주소로 제공(우주 탐험 콘텐츠의 WebGL 텍스처·fetch 용)
 }
