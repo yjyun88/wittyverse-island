@@ -1,12 +1,15 @@
 package net.minigate.wittyverse.island
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -15,6 +18,8 @@ import android.webkit.WebViewClient
 import androidx.webkit.WebViewAssetLoader
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -31,6 +36,23 @@ class MainActivity : ComponentActivity() {
     private var clearOnLoad = false
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this)).build()
+    }
+
+    // 웹 콘텐츠의 카메라 요청(별빛 천문대 카드 인식): 앱 자산 주소(appassets)에서 온 요청만, 앱 카메라 권한을 받은 뒤 허락
+    private var pendingCam: PermissionRequest? = null
+    private val camPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        pendingCam?.let { if (ok) it.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else it.deny() }
+        pendingCam = null
+    }
+    private fun onWebPermission(request: PermissionRequest) {
+        val fromApp = request.origin?.host == WebViewAssetLoader.DEFAULT_DOMAIN
+        if (!fromApp || PermissionRequest.RESOURCE_VIDEO_CAPTURE !in request.resources) { request.deny(); return }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+        } else {
+            pendingCam?.deny(); pendingCam = request
+            camPermission.launch(Manifest.permission.CAMERA)
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
@@ -60,6 +82,7 @@ class MainActivity : ComponentActivity() {
                     Log.d("WittyverseIsland", "${m.messageLevel()} ${m.sourceId()}:${m.lineNumber()} ${m.message()}")
                     return true
                 }
+                override fun onPermissionRequest(request: PermissionRequest) { runOnUiThread { onWebPermission(request) } }
             }
             // 지도 화면의 "나가기" 버튼이 부르는 다리(JS 스레드 → UI 스레드)
             addJavascriptInterface(object {

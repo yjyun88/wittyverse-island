@@ -809,12 +809,14 @@ function unfocusObs(){
 $('obsTag').onclick = () => focusObs();
 $('focusBack').onclick = () => unfocusObs();
 // 우주 탐험 콘텐츠: 화면 위 전체 창(iframe). 열려 있는 동안 지구 그리기를 멈춤, 닫으면 창을 지워 메모리 반환
-// 콘텐츠: 웹으로 다시 만든 우주 탐험(../contents/space-adventure). 앱에서는 WebViewAssetLoader 주소(https, WebGL 텍스처·fetch 허용), PC 점검은 상대 경로
+// 콘텐츠: 우주 탐험 전달본(../contents/space-adventure/handoff/dist/space-adventure.html, 개발 전달 규칙 한 파일 — 다른 앱에서도 같은 파일을 씀).
+// 앱에서는 WebViewAssetLoader 주소(https, WebGL 텍스처·fetch 허용), PC 점검은 상대 경로
 // (이전: 원본 유니티 웹 빌드 https://koominchul.github.io/webgl_test/build_universeWeb/ — H092 에서 24~29fps)
-const UNI_URL = location.protocol === 'file:' ? 'https://appassets.androidplatform.net/assets/space-adventure/index.html' : '../../../../contents/space-adventure/index.html';
+const UNI_URL = location.protocol === 'file:' ? 'https://appassets.androidplatform.net/assets/space-adventure/index.html' : '../../../../contents/space-adventure/handoff/dist/space-adventure.html';
 let uniDepth = 0;   // 콘텐츠 안 화면 깊이(0 목록, 1 행성 상세, 2 카드 팝업): 뒤로가기를 콘텐츠에 먼저 넘길지 판단
 addEventListener('message', e => {
-  const d = e.data; if (!d || !d.uni) return;
+  const d = e.data; if (d === 'space-adventure-exit') return closeUni();   // 전달본(content-html-handoff)의 나가기: exitContent() → CONTENT_ID + '-exit'
+  if (!d || !d.uni) return;
   if (d.uni === 'depth') uniDepth = d.depth;
   if (d.uni === 'exit') closeUni();
 });

@@ -13,6 +13,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#050a18}
 #wx .ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:28px;background:rgba(255,255,255,.22);transition:transform .8s}
 #wx.night .ic{transform:rotate(-360deg)}
 .hide{opacity:0!important;pointer-events:none!important}
+/* 구역 안 콘텐츠 창(AR존 천문대 → 별빛 천문대 등): 화면 전체 iframe, 뒤에 불러오는 중 글자 */
+#content{position:fixed;inset:0;z-index:30;background:#080d28;transition:opacity .3s}
+#content iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#content .msg{position:absolute;inset:0;display:grid;place-items:center;color:#cfe3ff;font:700 26px "Pretendard","Malgun Gothic",sans-serif}
 #s3d{position:fixed;right:24px;top:98px;height:52px;padding:0 20px 0 12px;display:flex;align-items:center;gap:8px;border-radius:999px;border:2px dashed rgba(255,255,255,.85);color:#fff;font:800 18px "Pretendard","Malgun Gothic",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);background:linear-gradient(135deg,#8b5cf6,#5b3fd0);transition:opacity .35s;-webkit-tap-highlight-color:transparent;z-index:5}
 /*__BUBFONT__*/
 #cast{position:fixed;left:0;top:0;pointer-events:none;overflow:hidden}
@@ -103,7 +107,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#050a18}
 @media (prefers-reduced-motion:reduce){#back.night::after,#exit.night::after,#wx.night::after,#ztitle.night:not(.hide),#ztitle.night:not(.hide)::after{animation:none}}
 </style></head><body>
 <canvas id="gl"></canvas><button id="exit" aria-label="나가기"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg></span><span class="tx">나가기</span></button><button id="back" class="hide" aria-label="지도로 돌아가기"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></span><span class="tx">지도로</span></button><div id="ztitle" class="hide"></div>
-<button id="s3d" class="hide" aria-label="3D 샘플 보기">🧪 3D 샘플</button><button id="wx" class="day" aria-label="날씨 변경"><span class="ic">☀️</span><span class="tx">낮</span></button><div id="cast"></div><div id="hud"></div>
+<div id="content" class="hide"><div class="msg"></div></div><button id="s3d" aria-label="3D 샘플 보기">🧪 3D 샘플</button><button id="wx" class="day" aria-label="날씨 변경"><span class="ic">☀️</span><span class="tx">낮</span></button><div id="cast"></div><div id="hud"></div>
 <script>__THREE__</script>
 <script>
 (function(){
@@ -531,19 +535,43 @@ const centre = pts => { let x = 0, y = 0; pts.forEach(p => { x += p[0]; y += p[1
 let mode = 'map', zone = null, tr = null;                                          // tr: running transition
 const ui = (id, on) => document.getElementById(id).classList.toggle('hide', !on);
 
-function openZone(k){ if (mode !== 'map') return; mode = 'in'; zone = k; ui('exit', 0); setCastZone(k); const [zx, zy] = centre(ZONES[k].poly); dMat.uniforms.uMap.value = dTex[k]; dBlur.value = dTexB[k]; zfxShow(k);
+function openZone(k){ if (mode !== 'map') return; mode = 'in'; zone = k; ui('exit', 0); ui('s3d', 0); setCastZone(k); const [zx, zy] = centre(ZONES[k].poly); dMat.uniforms.uMap.value = dTex[k]; dBlur.value = dTexB[k]; zfxShow(k);
   tr = { t: 0, dur: 1.1, fn: t => { const e = ease(t / .85); V.zoom = lerp(1, 2.4, e); V.cx = lerp(W / 2, zx, e); V.cy = lerp(H / 2, zy, e);
       const f = ease((t - .45) / .55); dMat.uniforms.uA.value = f; dMesh.scale.setScalar(lerp(1.18, 1, f)); castE = ease((t - .6) / .5); },
-    done: () => { mode = 'zone'; document.getElementById('ztitle').textContent = ZONES[k].name; ui('ztitle', 1); ui('back', 1); ui('s3d', k === 'learn'); } }; }
-function closeZone(){ if (mode !== 'zone') return; mode = 'out'; ui('ztitle', 0); ui('back', 0); ui('s3d', 0); const z0 = V.zoom, x0 = V.cx, y0 = V.cy;
+    done: () => { mode = 'zone'; document.getElementById('ztitle').textContent = ZONES[k].name; ui('ztitle', 1); ui('back', 1); } }; }
+function closeZone(){ if (mode !== 'zone') return; mode = 'out'; ui('ztitle', 0); ui('back', 0); const z0 = V.zoom, x0 = V.cx, y0 = V.cy;
   tr = { t: 0, dur: 1., fn: t => { const f = 1 - ease(t / .5); dMat.uniforms.uA.value = f; dMesh.scale.setScalar(lerp(1.12, 1, f)); castE = 1 - ease(t / .35);
       const e = ease((t - .2) / .8); V.zoom = lerp(z0, 1, e); V.cx = lerp(x0, W / 2, e); V.cy = lerp(y0, H / 2, e); },
-    done: () => { mode = 'map'; zone = null; castE = 0; ui('wx', 1); ui('exit', 1); } }; }
+    done: () => { mode = 'map'; zone = null; castE = 0; ui('wx', 1); ui('exit', 1); ui('s3d', 1); } }; }
 document.getElementById('back').addEventListener('click', closeZone);
-document.getElementById('s3d').addEventListener('click', () => { location.href = 'island3d/index.html?from=map'; });   // 임시: 가운데 섬 3D 샘플 진입
+document.getElementById('s3d').addEventListener('click', () => { location.href = 'island3d/index.html?from=map'; });   // 임시: 3D 샘플 진입. 섬 메인화면(날씨 버튼 아래)에만 보이고 구역에 들어가면 숨김(2026-11-19, 예전엔 학습 구역 안)
+// ---------- 구역 안 콘텐츠 연결: 상세 그림의 건물을 누르면 그 콘텐츠를 화면 전체 창(iframe)으로 연다 ----------
+// box = 상세 그림 안 건물 자리(그림 크기 대비 비율 x0, y0, x1, y1, 왼쪽 위 기준). AR존 천문대는 detail_ar.png(2560×1600)의 970~1220 × 280~590
+// url = 앱 자산의 https 주소(WebViewAssetLoader: 카메라·fetch 허용). exit = 콘텐츠가 나갈 때 보내는 메시지(CONTENT_ID + '-exit')
+// 놀이·퀴즈 로켓은 detail_play.png 의 1380~1620 × 340~840(발사대 포함) → 우주 탐험(3D 섬 샘플 3 천문대와 같은 콘텐츠)
+// depthBack: 콘텐츠가 {uni:'depth'} 로 안쪽 화면 깊이를 알려 주면, 기기 뒤로가기를 콘텐츠에 {uni:'back'} 으로 넘겨 한 단계씩 뒤로(우주 탐험)
+const APP_ASSETS = 'https://appassets.androidplatform.net/assets/';
+const LINKS = {
+  ar: [{ name: '별빛 천문대', box: [.379, .175, .477, .369], url: APP_ASSETS + 'starlight-observatory/index.html', exit: 'starlight-observatory-exit' }],
+  play: [{ name: '우주 탐험', box: [.539, .2125, .633, .525], url: APP_ASSETS + 'space-adventure/index.html', exit: 'space-adventure-exit', depthBack: true }] };
+let content = null;   // 열린 콘텐츠 { f: iframe, link, depth }. 열려 있는 동안 지도 그리기를 멈춤(loop)
+function openContent(link){ if (content) return; const box = document.getElementById('content');
+  box.querySelector('.msg').textContent = link.name + ' 불러오는 중…';
+  const f = document.createElement('iframe'); f.src = link.url; f.allow = 'camera; autoplay; fullscreen'; box.appendChild(f);
+  box.classList.remove('hide'); content = { f, link, depth: 0 }; }
+function closeContent(){ if (!content) return; content.f.remove(); content = null; document.getElementById('content').classList.add('hide'); last = performance.now(); }   // 창을 지워 메모리 반환
+addEventListener('message', e => { if (!content) return; const d = e.data;
+  if (d === content.link.exit) closeContent(); else if (d && d.uni === 'depth') content.depth = d.depth; });
+// 앱 뒤로가기(MainActivity 가 먼저 부름): 콘텐츠 안쪽 화면이면 콘텐츠에 넘기고, 첫 화면이면 콘텐츠 닫기
+window.__back = () => { if (!content) return false;
+  if (content.link.depthBack && content.depth > 0) content.f.contentWindow.postMessage({ uni: 'back' }, '*'); else closeContent(); return true; };
 let down = null;
 addEventListener('pointerdown', e => down = { x: e.clientX, y: e.clientY });
-addEventListener('pointerup', e => { if (!down || mode !== 'map') return; const tap = Math.hypot(e.clientX - down.x, e.clientY - down.y) < 14; down = null; if (!tap) return;
+addEventListener('pointerup', e => { if (!down || content) return; const tap = Math.hypot(e.clientX - down.x, e.clientY - down.y) < 14; down = null; if (!tap) return;
+  if (mode === 'zone') { const L = LINKS[zone]; if (!L) return;   // 구역 안: 상세 그림 좌표(그림 대비 비율, 왼쪽 위 기준)로 바꿔 건물 자리인지 봄
+    const fx = (dcam.left + e.clientX / innerWidth * (dcam.right - dcam.left)) / W, fy = 1 - (dcam.top - e.clientY / innerHeight * (dcam.top - dcam.bottom)) / H;
+    const l = L.find(l => fx >= l.box[0] && fx <= l.box[2] && fy >= l.box[1] && fy <= l.box[3]); if (l) openContent(l); return; }
+  if (mode !== 'map') return;
   const x = cam.left + e.clientX / innerWidth * (cam.right - cam.left), y = H - (cam.top - e.clientY / innerHeight * (cam.top - cam.bottom));   // screen -> image px
   const k = Object.keys(ZONES).find(q => inPoly(ZONES[q].poly, x, y)); if (k) openZone(k); });
 addEventListener('resize', fit);
@@ -552,6 +580,7 @@ addEventListener('resize', fit);
 let last = performance.now(), capT = 0, fpsN = 0, fpsT = last, T = 0, zapT = 0;
 function loop(now){
   requestAnimationFrame(loop);
+  if (content) return;   // 콘텐츠 창이 화면을 덮는 동안은 지도를 그리지 않음
   if (capT && now - capT < 1000 / 60 - 1.5) return; capT = Math.max((capT || now) + 1000 / 60, now - 1000 / 60);
   const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt; U.uT.value = T;
   if (wxTr) { wxTr.t += dt; const e = ease(wxTr.t / wxTr.dur); U.uN.value = lerp(wxTr.from, wxTr.to, e); if (wxTr.t >= wxTr.dur) wxTr = null; }

@@ -14,12 +14,19 @@ if [ "$1" = "map" ]; then
 fi
 cp "$ROOT/web/map/v10.html" "$ASSETS/index.html"                 # 지도 = 앱 첫 화면
 python -I "$ROOT/web/island3d/make_island3d.py" 1.5             # 3D 샘플 → assets/island3d/
-# 우주 탐험(샘플 3 천문대에서 여는 콘텐츠) → assets/space-adventure/
-# 원본은 이 프로젝트 밖 ../contents/space-adventure (2026-11-19 옮김, git 에 없음). 리소스 res/ 는 그 안 tools/extract_universe.py 로 만듦
-UNI="$ROOT/../contents/space-adventure"
-[ -f "$UNI/index.html" ] || { echo "우주 탐험 원본이 없습니다: $UNI"; exit 1; }
+# 콘텐츠는 개발 전달 규칙(content-html-handoff) 한 파일을 그대로 넣는다 — 다른 앱에서도 같은 파일을 쓰므로 앱용 사본을 따로 두지 않음(2026-11-19)
+# 우주 탐험(샘플 3 천문대에서 여는 콘텐츠) → assets/space-adventure/index.html
+# 원본은 이 프로젝트 밖 ../contents/space-adventure/handoff (template.html + res/), 그 안에서 python make_handoff.py <ffmpeg> 로 dist/space-adventure.html 을 먼저 만든다
+UNI="$ROOT/../contents/space-adventure/handoff/dist/space-adventure.html"
+[ -f "$UNI" ] || { echo "우주 탐험 결과물이 없습니다: $UNI (handoff 에서 make_handoff.py 먼저)"; exit 1; }
 rm -rf "$ASSETS/space-adventure" && mkdir -p "$ASSETS/space-adventure"
-cp -r "$UNI/index.html" "$UNI/lib" "$UNI/res" "$ASSETS/space-adventure/"
+cp "$UNI" "$ASSETS/space-adventure/index.html"
+# 별빛 천문대(지도 AR존 천문대에서 여는 콘텐츠) → assets/starlight-observatory/index.html
+# 원본은 ../contents/starlight-observatory/2D-lobby, 그 안에서 python -I build/build.py 로 out/starlight-observatory.html(2D 로비판 전달본)을 먼저 만든다
+STAR="$ROOT/../contents/starlight-observatory/2D-lobby/out/starlight-observatory.html"
+[ -f "$STAR" ] || { echo "별빛 천문대 결과물이 없습니다: $STAR (2D-lobby 에서 python -I build/build.py 먼저)"; exit 1; }
+rm -rf "$ASSETS/starlight-observatory" && mkdir -p "$ASSETS/starlight-observatory"
+cp "$STAR" "$ASSETS/starlight-observatory/index.html"
 
 cd "$ROOT/android"
 if command -v cmd.exe >/dev/null 2>&1; then ./gradlew.bat :app:assembleDebug -q; else ./gradlew :app:assembleDebug -q; fi

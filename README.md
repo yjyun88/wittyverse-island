@@ -34,8 +34,10 @@ web/
                       place_trees.py -> place_buildings.py -> place_landmarks.py -> place_coast.py -> place_polar.py
                       그림 물체(로띠 원본 잘라낸 2D 카드): props.py, props2.py, place.py
 reference/            지도 컨셉 원화(concept_1~4, 2026-11-19 상위 폴더에서 옮김). git 제외(.gitignore)
-../contents/space-adventure/ 우주 탐험(2026-11-19 이 저장소 밖으로 옮김): index.html(화면), lib/, res/, tools/extract_universe.py,
-                      handoff/(개발 전달본 틀·생성 스크립트). build.sh 가 여기서 assets/space-adventure 로 복사
+../contents/          위티섬에서 여는 콘텐츠(이 저장소 밖). 다른 앱에서도 실행되므로 개발 전달 규칙(content-html-handoff) 한 파일로 관리하고
+                      build.sh 가 그 파일을 그대로 assets 에 넣음(2026-11-19)
+  space-adventure/    우주 탐험: handoff/template.html + res/ → handoff/make_handoff.py → handoff/dist/space-adventure.html → assets/space-adventure
+  starlight-observatory/ 별빛 천문대: web/ + 2D-lobby/build/build.py → 2D-lobby/out/starlight-observatory.html → assets/starlight-observatory (지도 AR존 천문대)
 build.sh              생성 + 빌드 + (선택) 설치
 ```
 
